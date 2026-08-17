@@ -1,0 +1,63 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  migrateLegacyPayment,
+  promotionSaving,
+  selectBestPromotion,
+} from "../lib/payments.ts";
+import { parseStoredState, serializeStoredState } from "../lib/persistence.ts";
+
+const promotions = [
+  { day: "Miércoles", store: "Carrefour", bank: "Banco Ciudad", cardType: "Débito", discount: "20%", cap: "$8.000" },
+  { day: "Viernes", store: "Coto", bank: "Banco Ciudad", cardType: "Crédito", discount: "30%", cap: "$3.000" },
+  { day: "Sábado", store: "Día", bank: "Banco Nación", cardType: "Débito", discount: "25%", cap: "$5.000" },
+];
+
+test("elige solamente promociones del banco y tipo de tarjeta exactos", () => {
+  const promotion = selectBestPromotion(
+    { bank: "Banco Ciudad", cardType: "Débito" },
+    promotions,
+  );
+
+  assert.equal(promotion?.discount, "20%");
+  assert.equal(promotion?.cardType, "Débito");
+});
+
+test("no usa promociones de otro banco o tipo de tarjeta", () => {
+  assert.equal(selectBestPromotion(
+    { bank: "Banco Galicia", cardType: "Débito" },
+    promotions,
+  ), undefined);
+  assert.equal(selectBestPromotion(
+    { bank: "Banco Nación", cardType: "Crédito" },
+    promotions,
+  ), undefined);
+});
+
+test("respeta el tope de reintegro", () => {
+  assert.equal(promotionSaving(20_000, promotions[1]), 3_000);
+  assert.equal(promotionSaving(10_000, promotions[0]), 2_000);
+  assert.equal(promotionSaving(10_000), 0);
+});
+
+test("migra el medio de pago anterior separado por punto medio", () => {
+  assert.deepEqual(
+    migrateLegacyPayment(
+      { payment: "Banco Ciudad · Crédito" },
+      { bank: "Banco Nación", cardType: "Débito" },
+    ),
+    { paymentBank: "Banco Ciudad", paymentCardType: "Crédito" },
+  );
+});
+
+test("la persistencia conserva el medio de pago separado", () => {
+  const state = {
+    profile: { paymentBank: "Banco Nación", paymentCardType: "Débito" },
+    memory: [{ id: 1, text: "Preferencia" }],
+  };
+
+  assert.deepEqual(parseStoredState(serializeStoredState(state)), state);
+  assert.equal(parseStoredState("contenido inválido"), null);
+  assert.equal(parseStoredState("[]"), null);
+});

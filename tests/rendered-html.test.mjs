@@ -56,7 +56,8 @@ test("coordinates eight agents and respects selected meal slots", async () => {
           dislikes: "Aceitunas",
           allergies: "Ninguna",
           appliances: "Horno, anafe, microondas y licuadora",
-          payment: "Banco Ciudad",
+          paymentBank: "Banco Ciudad",
+          paymentCardType: "Débito",
           nutrition: true,
         },
         inventory: [
@@ -66,7 +67,7 @@ test("coordinates eight agents and respects selected meal slots", async () => {
         priorFeedback: ["Me faltó tiempo"],
         requestedMeals: ["breakfast", "lunch", "dinner"],
         promotions: [
-          { day: "Miércoles", store: "Carrefour", bank: "Banco Ciudad", discount: "20%", cap: "$8.000" },
+          { day: "Miércoles", store: "Carrefour", bank: "Banco Ciudad", cardType: "Débito", discount: "20%", cap: "$8.000" },
         ],
       }),
     }),
@@ -82,4 +83,38 @@ test("coordinates eight agents and respects selected meal slots", async () => {
   assert.ok(plan.week.every((day) => day.breakfast && day.lunch && day.dinner));
   assert.ok(plan.week.every((day) => day.snack === ""));
   assert.ok(plan.shopping.length > 0);
+  assert.ok(plan.estimatedSaving > 0);
+});
+
+test("does not apply an incompatible payment promotion", async () => {
+  const worker = await loadWorker();
+  const response = await worker.fetch(
+    new Request("http://localhost/api/plan", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        profile: {
+          budget: 35000,
+          level: "Principiante",
+          dislikes: "Aceitunas",
+          allergies: "Ninguna",
+          appliances: "Horno, anafe, microondas y licuadora",
+          paymentBank: "Banco Galicia",
+          paymentCardType: "Débito",
+        },
+        inventory: [],
+        requestedMeals: ["lunch", "dinner"],
+        promotions: [
+          { day: "Jueves", store: "Coto", bank: "Banco Galicia", cardType: "Crédito", discount: "30%", cap: "$8.000" },
+        ],
+      }),
+    }),
+    env,
+    ctx,
+  );
+
+  assert.equal(response.status, 200);
+  const plan = await response.json();
+  assert.equal(plan.estimatedSaving, 0);
+  assert.match(plan.agentRun[6].decision, /No hay promociones compatibles/);
 });
