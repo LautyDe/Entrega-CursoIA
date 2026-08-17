@@ -50,6 +50,37 @@
   padding: 8px 12px;
 }
 
+.payment-chips button.unverified {
+  background: #fff4dc;
+  border-color: #d8a947;
+  color: #714d08;
+}
+
+.unknown-payment-warning {
+  align-items: center;
+  background: #fff4dc;
+  border: 1px solid #d8a947;
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr auto auto;
+  margin-top: 14px;
+  padding: 12px;
+}
+
+.unknown-payment-warning div {
+  display: grid;
+  gap: 4px;
+}
+
+.unknown-payment-warning button {
+  background: white;
+  border: 1px solid #d8a947;
+  border-radius: 9px;
+  cursor: pointer;
+  padding: 8px 10px;
+}
+
 .promo-source {
   color: inherit;
   display: inline-block;
@@ -115,6 +146,7 @@
 
 @media (max-width: 760px) {
   .payment-add,
+  .unknown-payment-warning,
   .map-layout {
     grid-template-columns: 1fr;
   }

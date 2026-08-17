@@ -68,6 +68,43 @@ export function paymentKey(payment: PaymentMethod) {
   return `${payment.bank}::${payment.cardType}`;
 }
 
+function normalizeProvider(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+function editDistance(left: string, right: string) {
+  const row = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    let diagonal = row[0];
+    row[0] = leftIndex;
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const previous = row[rightIndex];
+      row[rightIndex] = Math.min(
+        row[rightIndex] + 1,
+        row[rightIndex - 1] + 1,
+        diagonal + (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1),
+      );
+      diagonal = previous;
+    }
+  }
+  return row[right.length];
+}
+
+export function validatePaymentProvider(value: string) {
+  const normalized = normalizeProvider(value);
+  if (!normalized) return { status: "empty" as const };
+  const exact = argentinaPaymentProviders.find((provider) => normalizeProvider(provider) === normalized);
+  if (exact) return { status: "known" as const, provider: exact };
+
+  const suggestion = argentinaPaymentProviders
+    .map((provider) => ({ provider, distance: editDistance(normalized, normalizeProvider(provider)) }))
+    .sort((a, b) => a.distance - b.distance)[0];
+  const threshold = normalized.length <= 6 ? 2 : 3;
+  return suggestion && suggestion.distance <= threshold
+    ? { status: "suggestion" as const, provider: suggestion.provider }
+    : { status: "unknown" as const, provider: value.trim() };
+}
+
 export function compatiblePromotions(methods: PaymentMethod[], today = new Date().toISOString().slice(0, 10)) {
   return verifiedPromotions.filter((promotion) =>
     promotion.validFrom <= today

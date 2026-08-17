@@ -117,6 +117,9 @@ La explicación completa y los diagramas se encuentran en
   la entidad antes de pagar porque pueden cambiar o agotarse.
 - Una promoción solo se aplica cuando coinciden exactamente el banco y el tipo
   de tarjeta; si no hay coincidencia, la compra no muestra un ahorro ficticio.
+- Los errores de escritura cercanos a una entidad conocida generan una
+  sugerencia. Las entidades desconocidas requieren confirmación, quedan
+  marcadas como no verificadas y no reciben promociones.
 - La ubicación requiere permiso explícito, se utiliza para una consulta puntual
   de comercios cercanos y no se persiste en el perfil ni en la memoria.
 - No se deben presentar las recomendaciones nutricionales como asesoramiento

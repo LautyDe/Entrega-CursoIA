@@ -7,7 +7,7 @@ import {
   selectBestPromotion,
 } from "../lib/payments.ts";
 import { parseStoredState, serializeStoredState } from "../lib/persistence.ts";
-import { compatiblePromotions } from "../lib/argentina-payments.ts";
+import { compatiblePromotions, validatePaymentProvider } from "../lib/argentina-payments.ts";
 
 const promotions = [
   { day: "Miércoles", store: "Carrefour", bank: "Banco Ciudad", cardType: "Débito", discount: "20%", cap: "$8.000" },
@@ -78,4 +78,11 @@ test("cruza varios medios y excluye promociones fuera de vigencia", () => {
     ["hipotecario-mami-2026"],
   );
   assert.deepEqual(compatiblePromotions(methods, "2027-01-01"), []);
+});
+
+test("valida, corrige y marca entidades de pago desconocidas", () => {
+  assert.deepEqual(validatePaymentProvider("banco nacion"), { status: "known", provider: "Banco Nación" });
+  assert.deepEqual(validatePaymentProvider("Banco Nasión"), { status: "suggestion", provider: "Banco Nación" });
+  assert.deepEqual(validatePaymentProvider(""), { status: "empty" });
+  assert.deepEqual(validatePaymentProvider("Banco Inventado"), { status: "unknown", provider: "Banco Inventado" });
 });

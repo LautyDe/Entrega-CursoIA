@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { recipeCatalog } from "../lib/agents/catalog";
-import { argentinaCardTypes, argentinaPaymentProviders, compatiblePromotions, paymentKey, verifiedPromotions } from "../lib/argentina-payments";
+import { argentinaCardTypes, argentinaPaymentProviders, compatiblePromotions, paymentKey, validatePaymentProvider, verifiedPromotions } from "../lib/argentina-payments";
 import { findNearbySupermarkets, type Coordinates, type NearbyStore } from "../lib/nearby-stores";
 import { migrateLegacyPayment, promotionSaving, selectBestPromotion, type CardType, type PaymentMethod } from "../lib/payments";
 import { MEALBOARD_STORAGE_KEY, parseStoredState, serializeStoredState } from "../lib/persistence";
@@ -220,6 +220,7 @@ export default function Home() {
   const [locationStatus, setLocationStatus] = useState("Usá tu ubicación para encontrar supermercados cercanos.");
   const [locating, setLocating] = useState(false);
   const [newPayment, setNewPayment] = useState<PaymentMethod>({ bank: "Banco Nación", cardType: "Débito" });
+  const [pendingUnknownPayment, setPendingUnknownPayment] = useState<PaymentMethod | null>(null);
   const scanInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -314,12 +315,31 @@ export default function Home() {
   };
 
   const addPaymentMethod = () => {
-    if (state.profile.paymentMethods.some((payment) => paymentKey(payment) === paymentKey(newPayment))) {
+    const validation = validatePaymentProvider(newPayment.bank);
+    if (validation.status === "empty") {
+      notify("Ingresá un banco o billetera");
+      return;
+    }
+    if (validation.status === "suggestion") {
+      setNewPayment({ ...newPayment, bank: validation.provider });
+      notify(`¿Quisiste decir ${validation.provider}? Revisalo y volvé a agregarlo.`);
+      return;
+    }
+    if (validation.status === "unknown") {
+      setPendingUnknownPayment({ ...newPayment, bank: validation.provider });
+      return;
+    }
+    savePaymentMethod({ ...newPayment, bank: validation.provider });
+  };
+
+  const savePaymentMethod = (paymentMethod: PaymentMethod) => {
+    if (state.profile.paymentMethods.some((payment) => paymentKey(payment).toLowerCase() === paymentKey(paymentMethod).toLowerCase())) {
       notify("Ese medio de pago ya está seleccionado");
       return;
     }
-    const paymentMethods = [...state.profile.paymentMethods, newPayment];
+    const paymentMethods = [...state.profile.paymentMethods, paymentMethod];
     setState({ ...state, profile: { ...state.profile, paymentMethods, paymentBank: paymentMethods[0].bank, paymentCardType: paymentMethods[0].cardType } });
+    setPendingUnknownPayment(null);
   };
 
   const removePaymentMethod = (payment: PaymentMethod) => {
@@ -899,7 +919,7 @@ export default function Home() {
                   <label>Presupuesto semanal<input type="number" value={state.profile.budget} onChange={(event) => setState({ ...state, profile: { ...state.profile, budget: Number(event.target.value) } })} /></label>
                   <label>Día de planificación<select value={state.profile.planningDay} onChange={(event) => setState({ ...state, profile: { ...state.profile, planningDay: event.target.value } })}>{["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"].map((day) => <option key={day}>{day}</option>)}</select></label>
                   <label>Nivel de cocina<select value={state.profile.level} onChange={(event) => setState({ ...state, profile: { ...state.profile, level: event.target.value } })}><option>Principiante</option><option>Intermedio</option><option>Avanzado</option></select></label>
-                  <fieldset className="wide payment-selector"><legend>Medios de pago disponibles</legend><div className="payment-add"><label>Banco o billetera<input list="payment-providers" value={newPayment.bank} onChange={(event) => setNewPayment({ ...newPayment, bank: event.target.value })} /><datalist id="payment-providers">{argentinaPaymentProviders.map((provider) => <option key={provider} value={provider} />)}</datalist></label><label>Tipo<select value={newPayment.cardType} onChange={(event) => setNewPayment({ ...newPayment, cardType: event.target.value as CardType })}>{argentinaCardTypes.map((cardType) => <option key={cardType}>{cardType}</option>)}</select></label><button className="secondary-button" type="button" onClick={addPaymentMethod}>Agregar</button></div><div className="payment-chips">{state.profile.paymentMethods.map((payment) => <button type="button" key={paymentKey(payment)} onClick={() => removePaymentMethod(payment)} aria-label={`Quitar ${payment.cardType} de ${payment.bank}`}>{payment.bank} · {payment.cardType} <span>×</span></button>)}</div><small>Elegí una opción argentina o escribí otra entidad. Podés agregar todas tus combinaciones.</small></fieldset>
+                  <fieldset className="wide payment-selector"><legend>Medios de pago disponibles</legend><div className="payment-add"><label>Banco o billetera<input list="payment-providers" value={newPayment.bank} onChange={(event) => { setNewPayment({ ...newPayment, bank: event.target.value }); setPendingUnknownPayment(null); }} /><datalist id="payment-providers">{argentinaPaymentProviders.map((provider) => <option key={provider} value={provider} />)}</datalist></label><label>Tipo<select value={newPayment.cardType} onChange={(event) => { setNewPayment({ ...newPayment, cardType: event.target.value as CardType }); setPendingUnknownPayment(null); }}>{argentinaCardTypes.map((cardType) => <option key={cardType}>{cardType}</option>)}</select></label><button className="secondary-button" type="button" onClick={addPaymentMethod}>Agregar</button></div>{pendingUnknownPayment && <div className="unknown-payment-warning" role="alert"><div><strong>Entidad no reconocida</strong><span>“{pendingUnknownPayment.bank}” no está en nuestra lista argentina verificada. Podés corregirla o guardarla sin promociones asociadas.</span></div><button type="button" onClick={() => setPendingUnknownPayment(null)}>Corregir</button><button type="button" onClick={() => savePaymentMethod(pendingUnknownPayment)}>Guardar igualmente</button></div>}<div className="payment-chips">{state.profile.paymentMethods.map((payment) => { const verified = validatePaymentProvider(payment.bank).status === "known"; return <button className={verified ? "" : "unverified"} type="button" key={paymentKey(payment)} onClick={() => removePaymentMethod(payment)} aria-label={`Quitar ${payment.cardType} de ${payment.bank}`}>{payment.bank} · {payment.cardType}{!verified && " · No verificada"} <span>×</span></button>; })}</div><small>Elegí una opción argentina o escribí otra entidad. Las entidades no reconocidas requieren confirmación y no reciben promociones.</small></fieldset>
                   <label>Comidas e ingredientes preferidos<input value={state.profile.likes} onChange={(event) => setState({ ...state, profile: { ...state.profile, likes: event.target.value } })} /></label>
                   <label>Comidas que no te gustan<input value={state.profile.dislikes} onChange={(event) => setState({ ...state, profile: { ...state.profile, dislikes: event.target.value } })} /></label>
                   <label>Alergias y restricciones<input value={state.profile.allergies} onChange={(event) => setState({ ...state, profile: { ...state.profile, allergies: event.target.value } })} /></label>
