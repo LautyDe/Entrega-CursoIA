@@ -5,6 +5,11 @@ import handler from "vinext/server/app-router-entry";
 interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
+  BETTER_AUTH_SECRET?: string;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  RESEND_API_KEY?: string;
+  EMAIL_FROM?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -28,6 +33,14 @@ interface ExecutionContext {
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     globalThis.__MEALBOARD_DB__ = env.DB;
+    globalThis.__MEALBOARD_WAIT_UNTIL__ = (promise) => ctx.waitUntil(promise);
+    globalThis.__MEALBOARD_AUTH_CONFIG__ = {
+      secret: env.BETTER_AUTH_SECRET,
+      googleClientId: env.GOOGLE_CLIENT_ID,
+      googleClientSecret: env.GOOGLE_CLIENT_SECRET,
+      resendApiKey: env.RESEND_API_KEY,
+      emailFrom: env.EMAIL_FROM,
+    };
     const url = new URL(request.url);
 
     if (url.pathname === "/_vinext/image") {

@@ -14,6 +14,9 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const localBindingConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
+  vars: Object.fromEntries([
+    "BETTER_AUTH_SECRET", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "RESEND_API_KEY", "EMAIL_FROM",
+  ].flatMap((key) => process.env[key] ? [[key, process.env[key]]] : [])),
   d1_databases: d1
     ? [
         {

@@ -2722,4 +2722,18 @@ textarea {
 .account-pill > div { display: grid; }
 .account-pill strong { font-size: 12px; }
 .account-pill small { color: var(--muted); font-size: 10px; }
-.account-pill a { color: var(--burgundy); font-size: 11px; font-weight: 800; text-decoration: none; }
+.account-pill button { background: transparent; border: 0; color: var(--burgundy); cursor: pointer; font-size: 11px; font-weight: 800; }
+
+.auth-notice, .auth-status { background: var(--burgundy-soft); border-radius: 10px; color: var(--burgundy-dark); padding: 11px; }
+.auth-form { display: grid; gap: 14px; text-align: left; }
+.auth-form label { display: grid; font-size: 12px; font-weight: 800; gap: 7px; }
+.auth-form input:not([type="checkbox"]) { border: 1px solid var(--line); border-radius: 11px; font: inherit; padding: 12px; }
+.auth-form label small { color: var(--muted); font-weight: 500; }
+.remember-check { align-items: center; display: flex !important; font-weight: 600 !important; }
+.google-button { align-items: center; background: white; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; display: flex; font: inherit; font-weight: 800; gap: 12px; justify-content: center; padding: 12px; }
+.google-button span { color: #4285f4; font-size: 18px; }
+.google-button:disabled, .auth-button:disabled { cursor: not-allowed; opacity: .5; }
+.auth-divider { align-items: center; color: var(--muted); display: flex; font-size: 11px; gap: 10px; }
+.auth-divider::before, .auth-divider::after { background: var(--line); content: ""; flex: 1; height: 1px; }
+.auth-links { display: flex; gap: 14px; justify-content: center; }
+.auth-links button { background: transparent; border: 0; color: var(--burgundy); cursor: pointer; font: inherit; font-size: 12px; font-weight: 800; }

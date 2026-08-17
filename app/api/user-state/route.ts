@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
-import { getChatGPTUser } from "../../chatgpt-auth";
+import { getMealBoardUser } from "../../../lib/auth";
 import { ensureUserSchema, getD1 } from "../../../db";
 
 const maximumStateBytes = 2_000_000;
 
-async function requireUser() {
-  const user = await getChatGPTUser();
+async function requireUser(request: Request) {
+  const user = await getMealBoardUser(request);
   if (!user) return null;
   await ensureUserSchema();
   return user;
 }
 
-export async function GET() {
-  const user = await requireUser();
+export async function GET(request: Request) {
+  const user = await requireUser(request);
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   const row = await getD1().prepare("SELECT state_json AS stateJson, updated_at AS updatedAt FROM user_states WHERE user_id = ?")
     .bind(user.id).first<{ stateJson: string; updatedAt: number }>();
@@ -25,7 +25,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const user = await requireUser();
+  const user = await requireUser(request);
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   const body = await request.json() as { state?: unknown };
   if (!body.state || typeof body.state !== "object" || Array.isArray(body.state)) {
@@ -40,7 +40,7 @@ export async function PUT(request: Request) {
     getD1().prepare(`INSERT INTO users (id, email, display_name, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET email = excluded.email, display_name = excluded.display_name, updated_at = excluded.updated_at`)
-      .bind(user.id, user.email, user.displayName, now, now),
+      .bind(user.id, user.email, user.name, now, now),
     getD1().prepare(`INSERT INTO user_states (user_id, state_json, updated_at) VALUES (?, ?, ?)
       ON CONFLICT(user_id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at`)
       .bind(user.id, stateJson, now),

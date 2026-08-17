@@ -100,7 +100,7 @@ realizan de forma explícita después de revisar las modificaciones.
 ## Trabajar con Codex en VS Code
 
 1. Instalar la extensión oficial **Codex** de OpenAI desde Extensiones.
-2. Iniciar sesión con la cuenta de ChatGPT.
+2. Crear una cuenta con email y contraseña o ingresar con Google.
 3. Abrir esta carpeta completa, no un archivo suelto.
 4. Abrir el panel de Codex y comenzar una conversación local.
 
@@ -133,11 +133,28 @@ La explicación completa y los diagramas se encuentran en
 
 ## Datos y limitaciones
 
-- El inicio de sesión usa la identidad segura de ChatGPT; MealBoard no recibe ni
-  almacena contraseñas. Calendario, inventario, memoria, compras y preferencias
-  quedan asociados al usuario autenticado.
+- El acceso utiliza Better Auth con registro por email y contraseña, sesiones
+  seguras, verificación de correo y recuperación mediante Resend. También admite
+  Google OAuth cuando se configuran las credenciales del proyecto.
+- Las contraseñas se almacenan únicamente como hashes administrados por Better
+  Auth. Calendario, inventario, memoria, compras y preferencias quedan asociados
+  al usuario autenticado.
 - En el primer acceso se importa el estado anterior guardado en `localStorage`
   para conservar los datos del MVP anónimo.
+
+### Variables privadas de autenticación
+
+Copiá `.env.example` a `.env` para desarrollo y configurá las mismas variables
+privadas en el entorno publicado:
+
+- `BETTER_AUTH_SECRET`: secreto aleatorio de al menos 32 caracteres.
+- `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`: credenciales OAuth web de Google.
+- `RESEND_API_KEY`: clave privada de Resend.
+- `EMAIL_FROM`: remitente perteneciente a un dominio verificado en Resend.
+
+Google debe tener autorizada la URL de retorno
+`https://TU-DOMINIO/api/auth/callback/google`. Para desarrollo local agregá la
+misma ruta bajo el origen local que muestre Vite.
 
 - El navegador conserva una copia de respaldo bajo `mealboard-state`; la copia
   asociada al usuario en D1 es la persistencia principal después del acceso.

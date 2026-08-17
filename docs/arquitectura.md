@@ -195,10 +195,11 @@ sequenceDiagram
 | Pruebas integrales | `tests/*.test.mjs` |
 # Identidad y persistencia por usuario
 
-MealBoard utiliza el inicio de sesión administrado por ChatGPT. El servidor toma
-la identidad desde encabezados autenticados de la plataforma y nunca confía en
-un identificador enviado por el navegador. Las rutas `/api/me` y
-`/api/user-state` validan esa identidad antes de leer o guardar información.
+MealBoard utiliza Better Auth con credenciales por email y Google OAuth. Better
+Auth mantiene usuarios, cuentas vinculadas, tokens de verificación y sesiones
+en D1; Resend entrega los mensajes de verificación y recuperación. Las rutas
+`/api/me` y `/api/user-state` validan la cookie de sesión del lado servidor y
+nunca confían en un identificador enviado por el navegador.
 
 Cloudflare D1 almacena un registro de usuario y un único estado de MealBoard por
 identidad. `localStorage` queda como respaldo del dispositivo y como fuente de

@@ -48,6 +48,18 @@ test("rejects user APIs without an authenticated identity", async () => {
   }
 });
 
+test("exposes only authentication capability flags", async () => {
+  const worker = await loadWorker();
+  const response = await worker.fetch(new Request("http://localhost/api/auth-config"), {
+    ...env,
+    BETTER_AUTH_SECRET: "test-secret-with-more-than-thirty-two-characters",
+    GOOGLE_CLIENT_ID: "public-client-id",
+    GOOGLE_CLIENT_SECRET: "private-client-secret",
+  }, ctx);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { ready: true, email: false, google: true });
+});
+
 test("coordinates nine agents and respects selected meal slots", async () => {
   const worker = await loadWorker();
   const response = await worker.fetch(

@@ -9,6 +9,7 @@ import { MEALBOARD_STORAGE_KEY, parseStoredState, serializeStoredState } from ".
 import { extractPublicBenefitReferences, publicBenefitMatchesStore } from "../lib/public-benefit-extraction";
 import { StoreMap, type StoreDeal } from "./store-map";
 import { PaymentProviderCombobox } from "./payment-provider-combobox";
+import { AccountPill, AuthScreen } from "./auth-screen";
 
 type MealSlot = "breakfast" | "lunch" | "snack" | "dinner";
 type Meal = {
@@ -813,13 +814,7 @@ export default function Home() {
   };
 
   if (authStatus === "anonymous") {
-    return <main className="auth-screen"><section className="auth-card" aria-labelledby="auth-title">
-      <span className="brand-mark">M</span><p className="eyebrow">TU MEALBOARD PERSONAL</p>
-      <h1 id="auth-title">Tus comidas, compras y ahorros en un solo lugar</h1>
-      <p>Iniciá sesión para mantener tu calendario, inventario, memoria y medios de pago separados y disponibles en tus dispositivos.</p>
-      <a className="primary-button auth-button" href="/signin-with-chatgpt?return_to=%2F">Ingresar con ChatGPT</a>
-      <small>MealBoard no recibe tu contraseña. La sesión es administrada por ChatGPT.</small>
-    </section></main>;
+    return <AuthScreen />;
   }
 
   return (
@@ -850,7 +845,7 @@ export default function Home() {
             <p className="subtitle">{titleByTab[activeTab][1]}</p>
           </div>
           <div className="top-actions">
-            {authenticatedUser && <div className="account-pill"><span>{initials(authenticatedUser.displayName)}</span><div><strong>{authenticatedUser.displayName}</strong><small>{authenticatedUser.email}</small></div><a href="/signout-with-chatgpt?return_to=%2F">Salir</a></div>}
+            {authenticatedUser && <AccountPill displayName={authenticatedUser.displayName} email={authenticatedUser.email} />}
             <button className="icon-button" type="button" onClick={() => setModal("notice")} aria-label="Ver notificaciones">♢<span>{notifications.length}</span></button>
             <button className="avatar" type="button" onClick={() => setActiveTab("profile")} aria-label="Abrir perfil">{initials(state.profile.name)}</button>
           </div>
