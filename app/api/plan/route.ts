@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(orchestrateMealPlan(context));
+    return NextResponse.json(await orchestrateMealPlan(context));
   } catch {
     return NextResponse.json(
       { error: "El orquestador no pudo completar el ciclo." },

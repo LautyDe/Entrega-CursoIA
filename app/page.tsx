@@ -54,12 +54,18 @@ type AgentRun = {
   observation: string; decision: string; output: string;
 };
 type AgentDefinition = { id: string; name: string; role: string };
+type PublicBenefitDiscovery = {
+  provider: string; sourceUrl?: string; sourceLabel?: string;
+  status: "available" | "unavailable" | "unsupported";
+  checkedAt: string; publicBenefits: string[]; message: string;
+};
 type PlanResponse = {
   mode: string; summary: string; agentTrace: string[];
   week: Meal[]; shopping: Omit<ShoppingItem, "id">[];
   agentRun: AgentRun[]; recipeGuides: Record<string, string[]>;
   estimatedCost: number; estimatedSaving: number;
   communitySource: string; warnings: string[];
+  promotionDiscoveries: PublicBenefitDiscovery[];
 };
 type ModalName =
   | "plan" | "recipe" | "feedback" | "notice" | "agents" | "community"
@@ -222,6 +228,8 @@ export default function Home() {
   const [locating, setLocating] = useState(false);
   const [newPayment, setNewPayment] = useState<PaymentMethod>({ bank: "Banco Nación", cardType: "Débito" });
   const [pendingUnknownPayment, setPendingUnknownPayment] = useState<PaymentMethod | null>(null);
+  const [publicBenefitDiscoveries, setPublicBenefitDiscoveries] = useState<PublicBenefitDiscovery[]>([]);
+  const [discoveringBenefits, setDiscoveringBenefits] = useState(false);
   const scanInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -324,6 +332,25 @@ export default function Home() {
     }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 });
   };
 
+  const refreshPublicBenefits = async () => {
+    setDiscoveringBenefits(true);
+    try {
+      const response = await fetch("/api/promotions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentMethods: activePaymentMethods }),
+      });
+      if (!response.ok) throw new Error("benefits");
+      const result = await response.json() as { discoveries: PublicBenefitDiscovery[] };
+      setPublicBenefitDiscoveries(result.discoveries);
+      notify("Fuentes públicas actualizadas");
+    } catch {
+      notify("No pudimos consultar las fuentes oficiales ahora.");
+    } finally {
+      setDiscoveringBenefits(false);
+    }
+  };
+
   const addPaymentMethod = () => {
     const validation = validatePaymentProvider(newPayment.bank);
     if (validation.status === "empty") {
@@ -403,10 +430,13 @@ export default function Home() {
           promotions,
           requestedMeals: state.profile.plannedMeals,
           preferredCommunityCalendar,
+          refreshPublicBenefits: true,
         }),
       });
       if (!response.ok) throw new Error("plan");
-      setPendingPlan(await response.json());
+      const plan = await response.json() as PlanResponse;
+      setPendingPlan(plan);
+      setPublicBenefitDiscoveries(plan.promotionDiscoveries ?? []);
     } catch {
       notify("No pudimos generar el plan. Probá nuevamente.");
       setModal(null);
@@ -679,7 +709,7 @@ export default function Home() {
         </nav>
         <button className="agent-status" type="button" onClick={() => setModal("agents")}>
           <span className="status-dot" />
-          <span><strong>8 agentes listos</strong><small>Motor local gratuito</small></span>
+          <span><strong>9 agentes listos</strong><small>Reglas locales + fuentes públicas</small></span>
         </button>
       </aside>
 
@@ -874,8 +904,11 @@ export default function Home() {
             </aside>
           </section>
           <section className="content-panel coverage-panel">
-            <div className="panel-heading"><div><p className="eyebrow">COBERTURA DE BENEFICIOS</p><h2>Qué verificamos para cada medio</h2><p>Una ausencia en el catálogo no significa que el banco no tenga descuentos. Consultá su fuente oficial para beneficios personalizados o recién publicados.</p></div></div>
-            <div className="coverage-grid">{paymentCoverage.map(({ payment, source, promotions: matchingPromotions }) => <article key={paymentKey(payment)}><div><strong>{payment.bank}</strong><span>{payment.cardType}</span></div>{matchingPromotions.length ? <p className="coverage-ok">{matchingPromotions.length} promoción estructurada vigente</p> : <p className="coverage-review">Requiere consulta en la fuente oficial</p>}{source?.notice && <p>{source.notice}</p>}{source ? <><a href={source.url} target="_blank" rel="noreferrer">{source.label} ↗</a><small>Fuente {source.coverage === "provider" ? "de la entidad" : "agregadora"} · revisada {source.reviewedAt}</small></> : <small>Entidad personalizada sin fuente oficial asociada.</small>}</article>)}</div>
+            <div className="panel-heading"><div><p className="eyebrow">COBERTURA DE BENEFICIOS</p><h2>Beneficios públicos de tus medios</h2><p>El agente consulta únicamente las fuentes oficiales asociadas a los medios seleccionados. No inicia sesión ni accede a beneficios personales.</p></div><button className="primary-button" type="button" disabled={discoveringBenefits} onClick={refreshPublicBenefits}>{discoveringBenefits ? "Consultando…" : "Actualizar fuentes oficiales"}</button></div>
+            <div className="coverage-grid">{paymentCoverage.map(({ payment, source, promotions: matchingPromotions }) => {
+              const discovery = publicBenefitDiscoveries.find((item) => item.provider === payment.bank);
+              return <article key={paymentKey(payment)}><div><strong>{payment.bank}</strong><span>{payment.cardType}</span></div>{matchingPromotions.length ? <p className="coverage-ok">{matchingPromotions.length} promoción estructurada vigente</p> : <p className="coverage-review">Sin promoción estructurada compatible</p>}{discovery && <div className={`source-status ${discovery.status}`}><strong>{discovery.status === "available" ? "Fuente consultada" : discovery.status === "unavailable" ? "Fuente temporalmente inaccesible" : "Sin fuente asociada"}</strong><p>{discovery.message}</p>{discovery.publicBenefits.length > 0 && <details><summary>Ver {discovery.publicBenefits.length} referencias encontradas</summary><ul>{discovery.publicBenefits.map((benefit) => <li key={benefit}>{benefit}</li>)}</ul></details>}</div>}{!discovery && <p>Actualizá para consultar publicaciones públicas.</p>}{source?.notice && <p>{source.notice}</p>}{source ? <><a href={source.url} target="_blank" rel="noreferrer">{source.label} ↗</a><small>Fuente {source.coverage === "provider" ? "de la entidad" : "agregadora"} · revisada {source.reviewedAt}</small></> : <small>Entidad personalizada sin fuente oficial asociada.</small>}</article>;
+            })}</div>
           </section>
           <section className="content-panel nearby-panel">
             <div className="panel-heading"><div><p className="eyebrow">CERCA TUYO</p><h2>Supermercados y descuentos en el mapa</h2><p>{locationStatus}</p></div><button className="primary-button" type="button" disabled={locating} onClick={requestLocation}>{locating ? "Buscando…" : "Usar mi ubicación"}</button></div>
@@ -971,14 +1004,14 @@ export default function Home() {
 
             {modal === "plan" && (
               planning
-                ? <div className="planning"><span className="agent-loader">M</span><p className="eyebrow">ORQUESTACIÓN AGÉNTICA</p><h2>Ocho agentes están trabajando…</h2><div className="cycle-line"><span>Captura</span><span>Memoria</span><span>Análisis</span><span>Comunidad</span><span>Plan</span><span>Recetas</span><span>Compras</span><span>Evaluación</span></div></div>
+                ? <div className="planning"><span className="agent-loader">M</span><p className="eyebrow">ORQUESTACIÓN AGÉNTICA</p><h2>Nueve agentes están trabajando…</h2><div className="cycle-line"><span>Captura</span><span>Memoria</span><span>Análisis</span><span>Comunidad</span><span>Plan</span><span>Recetas</span><span>Beneficios</span><span>Compras</span><span>Evaluación</span></div></div>
                 : pendingPlan && <>
                   <p className="eyebrow">PLAN LISTO PARA CONFIRMAR</p><h2>Tu nueva semana</h2><p>{pendingPlan.summary}</p>
                   <div className="plan-summary"><span>{state.profile.plannedMeals.length * 7} comidas</span><span>{money(pendingPlan.estimatedCost)} de compra</span><span>{money(pendingPlan.estimatedSaving)} de ahorro</span></div>
                   <div className="agent-run-list">{pendingPlan.agentRun.map((run, index) => <article key={run.id}><span>{index + 1}</span><div><strong>{run.name}</strong><small>{run.role}</small><p><b>Observó:</b> {run.observation}</p><p><b>Decidió:</b> {run.decision}</p><p><b>Entregó:</b> {run.output}</p></div><em>✓</em></article>)}</div>
                   {pendingPlan.warnings.length > 0 && <div className="warning-note">{pendingPlan.warnings.join(" ")}</div>}
                   {pendingPlan.estimatedCost > state.profile.budget && <div className="budget-warning">El plan supera tu presupuesto. Podés cancelar, bajar el presupuesto del perfil o confirmarlo de todos modos.</div>}
-                  <div className="mode-note">✓ Ejecutado por 8 agentes locales independientes. Ningún cambio importante se aplica sin tu confirmación.</div>
+                  <div className="mode-note">✓ Ejecutado por 9 agentes independientes. Solo el agente de beneficios consulta fuentes públicas oficiales. Ningún cambio importante se aplica sin tu confirmación.</div>
                   <div className="modal-actions"><button className="secondary-button" onClick={() => setModal(null)} type="button">Cancelar</button><button className="primary-button" onClick={confirmPlan} type="button">{pendingPlan.estimatedCost > state.profile.budget ? "Confirmar de todos modos" : "Confirmar calendario"}</button></div>
                 </>
             )}

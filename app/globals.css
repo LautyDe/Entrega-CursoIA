@@ -127,6 +127,28 @@
   font-weight: 800;
 }
 
+.coverage-grid .source-status {
+  align-items: stretch;
+  background: var(--cream);
+  border-radius: 12px;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+}
+
+.source-status details summary {
+  color: var(--wine);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.source-status ul {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding-left: 18px;
+}
+
 .coverage-ok {
   color: var(--green);
   font-weight: 800;

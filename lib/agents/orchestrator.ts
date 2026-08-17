@@ -5,6 +5,7 @@ import { runEvaluationAgent } from "./evaluation-agent";
 import { runMemoryAgent } from "./memory-agent";
 import { runPlanningAgent } from "./planning-agent";
 import { runRecipeAgent } from "./recipe-agent";
+import { runPromotionDiscoveryAgent } from "./promotion-discovery-agent";
 import { runShoppingAgent } from "./shopping-agent";
 import type { AgentDefinition, PlanRequest, PlanResult } from "./types";
 
@@ -15,17 +16,19 @@ export const agentRegistry: AgentDefinition[] = [
   { id: "community", name: "Agente de comunidad", role: "Prioriza calendarios y señales sociales." },
   { id: "planning", name: "Agente planificador", role: "Organiza las comidas elegidas por el usuario." },
   { id: "recipes", name: "Agente de recetas", role: "Adapta instrucciones y equipamiento." },
+  { id: "promotion-discovery", name: "Agente de beneficios públicos", role: "Consulta fuentes oficiales de los medios seleccionados." },
   { id: "shopping", name: "Agente de compras", role: "Calcula faltantes, precios y descuentos." },
   { id: "evaluation", name: "Agente evaluador", role: "Audita el plan antes de la confirmación." },
 ];
 
-export function orchestrateMealPlan(input: PlanRequest): PlanResult {
+export async function orchestrateMealPlan(input: PlanRequest): Promise<PlanResult> {
   let state = createInitialState(input);
   state = runMemoryAgent(state);
   state = runAnalysisAgent(state);
   state = runCommunityAgent(state);
   state = runPlanningAgent(state);
   state = runRecipeAgent(state);
+  state = await runPromotionDiscoveryAgent(state);
   state = runShoppingAgent(state);
   state = runEvaluationAgent(state);
 
@@ -38,7 +41,7 @@ export function orchestrateMealPlan(input: PlanRequest): PlanResult {
 
   return {
     mode: "local-agents",
-    summary: `Ocho agentes coordinaron un plan seguro dentro del contexto disponible,${urgentMessage || " sin alimentos urgentes"} e inspirado en “${state.communitySource}”.${savingMessage}`,
+    summary: `Nueve agentes coordinaron un plan seguro dentro del contexto disponible,${urgentMessage || " sin alimentos urgentes"} e inspirado en “${state.communitySource}”.${savingMessage}`,
     agentTrace: state.trace.map((run) => `${run.name}: ${run.decision}`),
     agentRun: state.trace,
     week: state.week,
@@ -48,5 +51,6 @@ export function orchestrateMealPlan(input: PlanRequest): PlanResult {
     estimatedSaving: state.estimatedSaving,
     communitySource: state.communitySource,
     warnings: state.warnings,
+    promotionDiscoveries: state.promotionDiscoveries,
   };
 }

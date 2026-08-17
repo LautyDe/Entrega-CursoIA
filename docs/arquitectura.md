@@ -5,7 +5,7 @@
 MealBoard es una aplicación web para organizar comidas semanales a partir del
 perfil, inventario, presupuesto y preferencias de una persona que vive sola.
 La solución combina una interfaz React, un endpoint HTTP y un orquestador de
-ocho agentes determinísticos implementados con reglas de dominio.
+nueve agentes determinísticos implementados con reglas de dominio.
 
 El término *agente* describe módulos independientes que observan un estado de
 trabajo, toman una decisión acotada y entregan un nuevo estado. La versión
@@ -19,7 +19,7 @@ flowchart LR
     U[Usuario] -->|Perfil, inventario y preferencias| UI[Interfaz React]
     UI -->|POST /api/plan| API[Route Handler de Next.js]
     API --> ORQ[Orquestador TypeScript]
-    ORQ --> AG[Ocho agentes basados en reglas]
+    ORQ --> AG[Nueve agentes basados en reglas]
     AG -->|Plan, compras, advertencias y traza| ORQ
     ORQ -->|Respuesta JSON| API
     API --> UI
@@ -31,6 +31,7 @@ flowchart LR
 
     DEMO[(Catálogo, precios y comunidad de demostración)] --> AG
     PROMO[(Promociones curadas con fuente y vigencia)] --> AG
+    WEB[(Fuentes públicas oficiales permitidas)] --> AG
 
     classDef actor fill:#f8efe5,stroke:#7b2638,color:#311;
     classDef traditional fill:#fff,stroke:#5b6658,color:#222;
@@ -39,7 +40,7 @@ flowchart LR
     class U actor;
     class UI,API,ORQ traditional;
     class AG agent;
-    class LS,DEMO,PROMO memory;
+    class LS,DEMO,PROMO,WEB memory;
 ```
 
 ### Clasificación de componentes
@@ -48,8 +49,8 @@ flowchart LR
 |---|---|---|
 | Interfaz React | Lógica tradicional | Captura datos, presenta resultados y solicita confirmación. |
 | API `/api/plan` | Lógica tradicional | Valida la entrada mínima y expone el orquestador por HTTP. |
-| Orquestador | Coordinación agéntica | Ejecuta los ocho módulos en un orden fijo. |
-| Ocho agentes | IA simbólica basada en reglas | Analizan restricciones y construyen una recomendación explicable. |
+| Orquestador | Coordinación agéntica | Ejecuta los nueve módulos en un orden fijo. |
+| Nueve agentes | IA simbólica basada en reglas | Analizan restricciones, consultan fuentes permitidas y construyen una recomendación explicable. |
 | Catálogo | Datos de demostración | Provee recetas y precios de referencia. |
 | Promociones verificadas | Datos externos curados | Conserva vigencia, fecha de verificación y fuente oficial. |
 | OpenStreetMap / Overpass | Datos abiertos externos | Busca supermercados próximos después del permiso de ubicación. |
@@ -70,15 +71,16 @@ flowchart TD
     A4[4. Comunidad<br/>Selecciona afinidad social demostrativa] --> A5
     A5[5. Planificación<br/>Puntúa recetas y arma la semana] --> A6
     A6[6. Recetas<br/>Genera instrucciones adaptadas] --> A7
-    A7[7. Compras<br/>Calcula faltantes y promociones compatibles] --> A8
-    A8[8. Evaluación<br/>Audita seguridad y presupuesto] --> OUT
+    A7[7. Beneficios públicos<br/>Consulta fuentes oficiales seleccionadas] --> A8
+    A8[8. Compras<br/>Calcula faltantes y promociones compatibles] --> A9
+    A9[9. Evaluación<br/>Audita seguridad y presupuesto] --> OUT
     OUT[Propuesta pendiente de confirmación] --> DEC{¿El usuario confirma?}
     DEC -->|Sí| MEM[(Persistir estado y memoria)]
     DEC -->|No| END[Descartar propuesta]
     MEM -->|Próxima planificación| A2
 
     SAFE[Alergias y alimentos vencidos] -. prioridad obligatoria .-> A3
-    SAFE -. segunda validación .-> A8
+    SAFE -. segunda validación .-> A9
 ```
 
 ### Decisión de cada agente
@@ -91,8 +93,9 @@ flowchart TD
 | 4 | Comunidad | Preferencias y calendarios demostrativos | Qué calendario aporta mayor afinidad | Fuente comunitaria y etiquetas |
 | 5 | Planificación | Candidatas, presupuesto, urgencias y afinidad | Qué receta ocupa cada comida de la semana | Calendario semanal propuesto |
 | 6 | Recetas | Comidas elegidas, nivel y equipos | Cómo explicar cada preparación de forma breve | Guías de cocina |
-| 7 | Compras | Ingredientes requeridos, inventario, banco y tarjeta | Qué falta comprar y qué promoción es compatible | Lista, costo y ahorro estimado |
-| 8 | Evaluación | Plan completo, restricciones y presupuesto | Si el resultado es seguro y qué advertencias mostrar | Propuesta auditada para confirmar |
+| 7 | Beneficios públicos | Medios seleccionados y fuentes oficiales permitidas | Qué publicaciones públicas pueden mostrarse como referencia | Estado, fuente y fragmentos públicos, sin aplicarlos como ahorro |
+| 8 | Compras | Ingredientes requeridos, inventario, banco y tarjeta | Qué falta comprar y qué promoción estructurada es compatible | Lista, costo y ahorro estimado |
+| 9 | Evaluación | Plan completo, restricciones y presupuesto | Si el resultado es seguro y qué advertencias mostrar | Propuesta auditada para confirmar |
 
 El flujo es secuencial dentro de cada ejecución. Se vuelve cíclico entre
 semanas porque la evaluación y las acciones confirmadas alimentan la memoria
@@ -118,7 +121,7 @@ sequenceDiagram
     participant UI as Interfaz React
     participant API as API /api/plan
     participant O as Orquestador
-    participant A as Agentes 1 a 8
+    participant A as Agentes 1 a 9
     participant M as localStorage
 
     U->>UI: Configura perfil, inventario y comidas
@@ -128,7 +131,7 @@ sequenceDiagram
     API->>API: Valida perfil e inventario
     API->>O: orchestrateMealPlan(contexto)
 
-    loop Ocho agentes en orden
+    loop Nueve agentes en orden
         O->>A: Entrega WorkingState
         A->>A: Observa y decide con reglas
         A-->>O: Devuelve nuevo WorkingState + traza

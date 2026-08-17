@@ -11,13 +11,14 @@ para comprar.
 ## Funciones principales
 
 - Calendario semanal configurable.
-- Ocho agentes locales coordinados:
-  captura, memoria, análisis, comunidad, planificación, recetas, compras y
-  evaluación.
+- Nueve agentes coordinados: captura, memoria, análisis, comunidad,
+  planificación, recetas, beneficios públicos, compras y evaluación.
 - Inventario con cantidades, precios y vencimientos.
 - Lista de compras cruzada con múltiples bancos, billeteras y tipos de tarjeta.
 - Promociones con vigencia, fecha de verificación y enlace a condiciones
   oficiales.
+- Consulta bajo demanda de las páginas públicas oficiales correspondientes
+  únicamente a los medios de pago seleccionados.
 - Mapa opcional de supermercados cercanos mediante geolocalización y datos de
   OpenStreetMap.
 - Comunidad de calendarios para guardar, seguir, publicar y adaptar.
@@ -26,6 +27,9 @@ para comprar.
 
 La versión actual no usa una API paga ni un LLM. Los agentes son módulos
 determinísticos con reglas de dominio y una traza visible de sus decisiones.
+El agente de beneficios realiza solicitudes web acotadas, con lista de fuentes
+permitidas, tiempo límite y caché; no inicia sesión ni accede a información
+personal del cliente.
 
 ## Tecnologías
 
@@ -91,6 +95,7 @@ entorno Linux, VS Code y Codex también admiten WSL2.
 ```text
 app/
   api/plan/route.ts       Endpoint del orquestador
+  api/promotions/route.ts Consulta fuentes públicas de beneficios
   page.tsx                Interfaz y estado del MVP
   globals.css             Diseño visual
 lib/agents/
@@ -125,6 +130,9 @@ La explicación completa y los diagramas se encuentran en
 - Cada medio seleccionado muestra su nivel de cobertura y un acceso a la
   fuente oficial. No encontrar una promoción estructurada no se presenta como
   prueba de que el banco carezca de beneficios.
+- Los textos encontrados en páginas oficiales se muestran como referencias
+  públicas. Solo las promociones estructuradas, vigentes y compatibles se usan
+  para calcular ahorro; una referencia web nunca se aplica automáticamente.
 - Santander Cuenta Sueldo incluye oportunidades verificadas para ChangoMás,
   Jumbo, Disco, Vea, La Anónima, Carrefour y Día. La app muestra la condición
   de Plan Sueldo y exige confirmar vigencia y adhesión antes de comprar.

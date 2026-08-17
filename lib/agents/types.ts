@@ -1,3 +1,6 @@
+import type { PublicBenefitDiscovery } from "./promotion-discovery-agent";
+import type { CardType, PaymentMethod } from "../payments";
+
 export type IngredientInput = {
   id?: number;
   name: string;
@@ -42,6 +45,7 @@ export type PlanRequest = {
   promotions?: PromotionInput[];
   requestedMeals?: string[];
   preferredCommunityCalendar?: string;
+  refreshPublicBenefits?: boolean;
 };
 
 export type MealSlot = "breakfast" | "lunch" | "snack" | "dinner";
@@ -108,6 +112,7 @@ export type WorkingState = {
   estimatedCost: number;
   estimatedSaving: number;
   bestPromotion?: PromotionInput;
+  promotionDiscoveries: PublicBenefitDiscovery[];
   warnings: string[];
   trace: AgentRun[];
 };
@@ -124,6 +129,7 @@ export type PlanResult = {
   estimatedSaving: number;
   communitySource: string;
   warnings: string[];
+  promotionDiscoveries: PublicBenefitDiscovery[];
 };
 
 export type AgentDefinition = {
@@ -146,4 +152,3 @@ export function addRun(
 ): WorkingState {
   return { ...state, trace: [...state.trace, { ...run, status: "completed" }] };
 }
-import type { CardType, PaymentMethod } from "../payments";

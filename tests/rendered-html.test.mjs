@@ -40,7 +40,7 @@ test("renders development preview metadata", async () => {
   assert.match(await response.text(), developmentPreviewMeta);
 });
 
-test("coordinates eight agents and respects selected meal slots", async () => {
+test("coordinates nine agents and respects selected meal slots", async () => {
   const worker = await loadWorker();
   const response = await worker.fetch(
     new Request("http://localhost/api/plan", {
@@ -78,7 +78,7 @@ test("coordinates eight agents and respects selected meal slots", async () => {
   assert.equal(response.status, 200);
   const plan = await response.json();
   assert.equal(plan.mode, "local-agents");
-  assert.equal(plan.agentRun.length, 8);
+  assert.equal(plan.agentRun.length, 9);
   assert.equal(plan.week.length, 7);
   assert.ok(plan.week.every((day) => day.breakfast && day.lunch && day.dinner));
   assert.ok(plan.week.every((day) => day.snack === ""));
@@ -116,5 +116,5 @@ test("does not apply an incompatible payment promotion", async () => {
   assert.equal(response.status, 200);
   const plan = await response.json();
   assert.equal(plan.estimatedSaving, 0);
-  assert.match(plan.agentRun[6].decision, /No hay promociones vigentes compatibles/);
+  assert.match(plan.agentRun.find((run) => run.id === "shopping").decision, /No hay promociones vigentes compatibles/);
 });

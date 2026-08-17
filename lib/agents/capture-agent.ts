@@ -35,6 +35,7 @@ export function createInitialState(input: PlanRequest): WorkingState {
     shopping: [],
     estimatedCost: 0,
     estimatedSaving: 0,
+    promotionDiscoveries: [],
     warnings: [],
     trace: [],
   };
