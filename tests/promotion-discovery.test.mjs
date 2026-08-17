@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { extractPublicBenefitSnippets } from "../lib/public-benefit-extraction.ts";
+import { extractPublicBenefitReferences, extractPublicBenefitSnippets, publicBenefitMatchesStore } from "../lib/public-benefit-extraction.ts";
 
 test("extracts supermarket discounts from public HTML without scripts", () => {
   const snippets = extractPublicBenefitSnippets(`
@@ -23,4 +23,21 @@ test("limits the extracted public references", () => {
   ).join("");
 
   assert.ok(extractPublicBenefitSnippets(html).length <= 8);
+});
+
+test("structures only public references with store, day and discount", () => {
+  const references = extractPublicBenefitReferences([
+    "Los miércoles obtené 20% de ahorro en Carrefour pagando con tarjeta de débito.",
+    "Conocé todos los beneficios disponibles en Coto.",
+  ]);
+
+  assert.deepEqual(references, [{
+    store: "Carrefour",
+    day: "Miércoles",
+    discount: "20%",
+    cardTypes: ["Débito"],
+    excerpt: "Los miércoles obtené 20% de ahorro en Carrefour pagando con tarjeta de débito.",
+  }]);
+  assert.equal(publicBenefitMatchesStore(references[0], "Carrefour Market Palermo", "Carrefour Market"), true);
+  assert.equal(publicBenefitMatchesStore(references[0], "Coto Palermo", "Coto"), false);
 });

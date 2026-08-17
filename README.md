@@ -134,6 +134,9 @@ La explicación completa y los diagramas se encuentran en
 - Los textos encontrados en páginas oficiales se muestran como referencias
   públicas. Solo las promociones estructuradas, vigentes y compatibles se usan
   para calcular ahorro; una referencia web nunca se aplica automáticamente.
+- Cuando una referencia pública contiene comercio, día y porcentaje legibles,
+  puede aparecer en amarillo sobre el mapa. Sigue siendo informativa y no se
+  utiliza para calcular ahorro hasta tener condiciones estructuradas completas.
 - Santander Cuenta Sueldo incluye oportunidades verificadas para ChangoMás,
   Jumbo, Disco, Vea, La Anónima, Carrefour y Día. La app muestra la condición
   de Plan Sueldo y exige confirmar vigencia y adhesión antes de comprar.

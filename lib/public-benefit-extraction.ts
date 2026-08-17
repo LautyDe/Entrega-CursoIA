@@ -1,4 +1,17 @@
 const supermarkets = ["Carrefour", "Coto", "ChangoMás", "Changomas", "Jumbo", "Disco", "Vea", "Día", "Dia", "La Anónima", "La Anonima", "Mami"];
+const days = ["Lunes", "Martes", "Miércoles", "Miercoles", "Jueves", "Viernes", "Sábado", "Sabado", "Domingo"];
+
+export type PublicBenefitReference = {
+  store: string;
+  day: string;
+  discount: string;
+  excerpt: string;
+  cardTypes: Array<"Débito" | "Crédito" | "Prepaga" | "Dinero en cuenta">;
+};
+
+function normalize(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
 
 function visibleText(html: string) {
   return html
@@ -25,4 +38,35 @@ export function extractPublicBenefitSnippets(html: string) {
     }
   });
   return snippets.slice(0, 8);
+}
+
+export function extractPublicBenefitReferences(snippets: string[]): PublicBenefitReference[] {
+  const references: PublicBenefitReference[] = [];
+  snippets.forEach((snippet) => {
+    const normalizedSnippet = normalize(snippet);
+    supermarkets.forEach((store) => {
+      const storeOffset = normalizedSnippet.indexOf(normalize(store));
+      if (storeOffset < 0) return;
+      const excerpt = snippet.slice(Math.max(0, storeOffset - 140), Math.min(snippet.length, storeOffset + store.length + 200));
+      const normalizedExcerpt = normalize(excerpt);
+      const day = days.find((candidate) => normalizedExcerpt.includes(normalize(candidate)));
+      const discount = excerpt.match(/\b\d{1,2}\s*%/)?.[0].replace(/\s+/g, "");
+      if (!day || !discount) return;
+      const cardTypes: PublicBenefitReference["cardTypes"] = [];
+      if (normalizedExcerpt.includes("debito")) cardTypes.push("Débito");
+      if (normalizedExcerpt.includes("credito")) cardTypes.push("Crédito");
+      if (normalizedExcerpt.includes("prepaga")) cardTypes.push("Prepaga");
+      if (normalizedExcerpt.includes("dinero en cuenta") || normalizedExcerpt.includes("saldo en cuenta")) cardTypes.push("Dinero en cuenta");
+      const canonicalStore = normalize(store) === "changomas" ? "ChangoMás"
+        : normalize(store) === "dia" ? "Día"
+          : normalize(store) === "la anonima" ? "La Anónima" : store;
+      const reference = { store: canonicalStore, day: day.replace("Miercoles", "Miércoles").replace("Sabado", "Sábado"), discount, excerpt, cardTypes };
+      if (!references.some((item) => item.store === reference.store && item.day === reference.day && item.discount === reference.discount)) references.push(reference);
+    });
+  });
+  return references.slice(0, 20);
+}
+
+export function publicBenefitMatchesStore(reference: PublicBenefitReference, storeName: string, storeBrand = storeName) {
+  return normalize(`${storeName} ${storeBrand}`).includes(normalize(reference.store));
 }

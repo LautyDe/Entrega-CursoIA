@@ -217,6 +217,11 @@
   font-weight: 800;
 }
 
+.store-public-deal {
+  color: #8a5b00;
+  font-weight: 800;
+}
+
 .store-deal-detail {
   align-items: flex-start !important;
   display: grid !important;
@@ -247,6 +252,13 @@
 .map-legend i.deal-dot {
   background: #75b668;
   border: 2px solid #315b3a;
+  height: 15px;
+  width: 15px;
+}
+
+.map-legend i.public-dot {
+  background: #f3c969;
+  border: 2px solid #8a5b00;
   height: 15px;
   width: 15px;
 }

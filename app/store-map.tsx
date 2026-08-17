@@ -8,6 +8,7 @@ export type StoreDeal = {
   discount: string;
   paymentLabels: string[];
   title: string;
+  kind: "verified" | "public-reference";
 };
 
 export function StoreMap({ location, stores, dealsByStore }: { location: Coordinates; stores: NearbyStore[]; dealsByStore: Record<string, StoreDeal[]> }) {
@@ -28,6 +29,7 @@ export function StoreMap({ location, stores, dealsByStore }: { location: Coordin
       }).bindPopup("Tu ubicación aproximada").addTo(map);
       stores.forEach((store) => {
         const deals = dealsByStore[store.id] ?? [];
+        const hasVerifiedDeal = deals.some((deal) => deal.kind === "verified");
         const popup = document.createElement("div");
         const title = document.createElement("strong");
         title.textContent = store.name;
@@ -35,7 +37,7 @@ export function StoreMap({ location, stores, dealsByStore }: { location: Coordin
         deals.forEach((deal) => {
           const benefit = document.createElement("p");
           benefit.className = "map-popup-deal";
-          benefit.textContent = `${deal.day}: ${deal.discount} · ${deal.paymentLabels.join(", ")}`;
+          benefit.textContent = `${deal.day}: ${deal.discount} · ${deal.paymentLabels.join(", ")}${deal.kind === "public-reference" ? " · referencia pública" : ""}`;
           popup.append(benefit);
         });
         if (!deals.length) {
@@ -45,8 +47,8 @@ export function StoreMap({ location, stores, dealsByStore }: { location: Coordin
         }
         leaflet.circleMarker([store.latitude, store.longitude], {
           radius: deals.length ? 10 : 6,
-          color: deals.length ? "#315b3a" : "#7f817d",
-          fillColor: deals.length ? "#75b668" : "#e2e1dc",
+          color: hasVerifiedDeal ? "#315b3a" : deals.length ? "#8a5b00" : "#7f817d",
+          fillColor: hasVerifiedDeal ? "#75b668" : deals.length ? "#f3c969" : "#e2e1dc",
           fillOpacity: 1,
           weight: deals.length ? 3 : 1,
         }).bindPopup(popup).addTo(map!);

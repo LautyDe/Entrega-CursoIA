@@ -6,6 +6,7 @@ import { argentinaCardTypes, argentinaPaymentProviders, benefitSourceForProvider
 import { findNearbySupermarkets, type Coordinates, type NearbyStore } from "../lib/nearby-stores";
 import { migrateLegacyPayment, promotionSaving, selectBestPromotion, type CardType, type PaymentMethod } from "../lib/payments";
 import { MEALBOARD_STORAGE_KEY, parseStoredState, serializeStoredState } from "../lib/persistence";
+import { extractPublicBenefitReferences, publicBenefitMatchesStore } from "../lib/public-benefit-extraction";
 import { StoreMap, type StoreDeal } from "./store-map";
 
 type MealSlot = "breakfast" | "lunch" | "snack" | "dinner";
@@ -295,18 +296,39 @@ export default function Home() {
     }));
   }, [state.profile.paymentBank, state.profile.paymentCardType, state.profile.paymentMethods]);
   const compatiblePromotionList = useMemo(() => compatiblePromotions(activePaymentMethods), [activePaymentMethods]);
+  const publicBenefitReferences = useMemo(() => publicBenefitDiscoveries.flatMap((discovery) =>
+    extractPublicBenefitReferences(discovery.publicBenefits).map((reference) => ({ ...reference, provider: discovery.provider })),
+  ), [publicBenefitDiscoveries]);
   const dealsByStore = useMemo(() => Object.fromEntries(nearbyStores.map((store) => {
-    const deals: StoreDeal[] = compatiblePromotionList
+    const verifiedDeals: StoreDeal[] = compatiblePromotionList
       .filter((promotion) => promotionMatchesStore(promotion, store.name, store.brand))
       .map((promotion) => ({
         title: promotion.title,
         day: promotion.day,
         discount: promotion.discount,
+        kind: "verified" as const,
         paymentLabels: paymentMethodsForPromotion(promotion, activePaymentMethods)
           .map((method) => `${method.bank} ${method.cardType.toLowerCase()}`),
       }));
-    return [store.id, deals];
-  })), [activePaymentMethods, compatiblePromotionList, nearbyStores]);
+    const publicDeals: StoreDeal[] = publicBenefitReferences
+      .filter((reference) => publicBenefitMatchesStore(reference, store.name, store.brand))
+      .map((reference) => {
+        const paymentLabels = activePaymentMethods
+          .filter((method) => method.bank === reference.provider)
+          .filter((method) => !reference.cardTypes.length || reference.cardTypes.includes(method.cardType))
+          .map((method) => `${method.bank} ${method.cardType.toLowerCase()}`);
+        return {
+          title: `${reference.store} · referencia pública`,
+          day: reference.day,
+          discount: reference.discount,
+          kind: "public-reference" as const,
+          paymentLabels,
+        };
+      })
+      .filter((deal) => deal.paymentLabels.length > 0)
+      .filter((deal) => !verifiedDeals.some((verified) => verified.day === deal.day && verified.discount === deal.discount));
+    return [store.id, [...verifiedDeals, ...publicDeals]];
+  })), [activePaymentMethods, compatiblePromotionList, nearbyStores, publicBenefitReferences]);
   const nearbyStoresWithDeals = nearbyStores.filter((store) => dealsByStore[store.id]?.length);
   const paymentCoverage = activePaymentMethods.map((payment) => ({
     payment,
@@ -321,6 +343,25 @@ export default function Home() {
   const savedFromPurchases = state.purchases.reduce((sum, purchase) => sum + purchase.saved, 0);
   const totalPrepared = state.reviews.reduce((sum, review) => sum + review.prepared, 0);
 
+  const refreshPublicBenefits = async (silent = false) => {
+    setDiscoveringBenefits(true);
+    try {
+      const response = await fetch("/api/promotions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentMethods: activePaymentMethods }),
+      });
+      if (!response.ok) throw new Error("benefits");
+      const result = await response.json() as { discoveries: PublicBenefitDiscovery[] };
+      setPublicBenefitDiscoveries(result.discoveries);
+      if (!silent) notify("Fuentes públicas actualizadas");
+    } catch {
+      if (!silent) notify("No pudimos consultar las fuentes oficiales ahora.");
+    } finally {
+      setDiscoveringBenefits(false);
+    }
+  };
+
   const requestLocation = () => {
     if (!navigator.geolocation) {
       setLocationStatus("Este dispositivo no ofrece geolocalización.");
@@ -328,6 +369,7 @@ export default function Home() {
     }
     setLocating(true);
     setLocationStatus("Solicitando permiso de ubicación…");
+    void refreshPublicBenefits(true);
     navigator.geolocation.getCurrentPosition(async (position) => {
       const current = { latitude: position.coords.latitude, longitude: position.coords.longitude };
       setLocation(current);
@@ -345,25 +387,6 @@ export default function Home() {
       setLocating(false);
       setLocationStatus("No se compartió la ubicación. MealBoard sigue funcionando sin el mapa.");
     }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 });
-  };
-
-  const refreshPublicBenefits = async () => {
-    setDiscoveringBenefits(true);
-    try {
-      const response = await fetch("/api/promotions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentMethods: activePaymentMethods }),
-      });
-      if (!response.ok) throw new Error("benefits");
-      const result = await response.json() as { discoveries: PublicBenefitDiscovery[] };
-      setPublicBenefitDiscoveries(result.discoveries);
-      notify("Fuentes públicas actualizadas");
-    } catch {
-      notify("No pudimos consultar las fuentes oficiales ahora.");
-    } finally {
-      setDiscoveringBenefits(false);
-    }
   };
 
   const addPaymentMethod = () => {
@@ -919,7 +942,7 @@ export default function Home() {
             </aside>
           </section>
           <section className="content-panel coverage-panel">
-            <div className="panel-heading"><div><p className="eyebrow">COBERTURA DE BENEFICIOS</p><h2>Beneficios públicos de tus medios</h2><p>El agente consulta únicamente las fuentes oficiales asociadas a los medios seleccionados. No inicia sesión ni accede a beneficios personales.</p></div><button className="primary-button" type="button" disabled={discoveringBenefits} onClick={refreshPublicBenefits}>{discoveringBenefits ? "Consultando…" : "Actualizar fuentes oficiales"}</button></div>
+            <div className="panel-heading"><div><p className="eyebrow">COBERTURA DE BENEFICIOS</p><h2>Beneficios públicos de tus medios</h2><p>El agente consulta únicamente las fuentes oficiales asociadas a los medios seleccionados. No inicia sesión ni accede a beneficios personales.</p></div><button className="primary-button" type="button" disabled={discoveringBenefits} onClick={() => void refreshPublicBenefits()}>{discoveringBenefits ? "Consultando…" : "Actualizar fuentes oficiales"}</button></div>
             <div className="coverage-grid">{paymentCoverage.map(({ payment, source, promotions: matchingPromotions }) => {
               const discovery = publicBenefitDiscoveries.find((item) => item.provider === payment.bank);
               return <article key={paymentKey(payment)}><div><strong>{payment.bank}</strong><span>{payment.cardType}</span></div>{matchingPromotions.length ? <p className="coverage-ok">{matchingPromotions.length} promoción estructurada vigente</p> : <p className="coverage-review">Sin promoción estructurada compatible</p>}{discovery && <div className={`source-status ${discovery.status}`}><strong>{discovery.status === "available" ? "Fuente consultada" : discovery.status === "unavailable" ? "Fuente temporalmente inaccesible" : "Sin fuente asociada"}</strong><p>{discovery.message}</p>{discovery.publicBenefits.length > 0 && <details><summary>Ver {discovery.publicBenefits.length} referencias encontradas</summary><ul>{discovery.publicBenefits.map((benefit) => <li key={benefit}>{benefit}</li>)}</ul></details>}</div>}{!discovery && <p>Actualizá para consultar publicaciones públicas.</p>}{source?.notice && <p>{source.notice}</p>}{source ? <><a href={source.url} target="_blank" rel="noreferrer">{source.label} ↗</a><small>Fuente {source.coverage === "provider" ? "de la entidad" : "agregadora"} · revisada {source.reviewedAt}</small></> : <small>Entidad personalizada sin fuente oficial asociada.</small>}</article>;
@@ -928,9 +951,9 @@ export default function Home() {
           <section className="content-panel nearby-panel">
             <div className="panel-heading"><div><p className="eyebrow">CERCA TUYO</p><h2>Supermercados y descuentos en el mapa</h2><p>{locationStatus}{location && ` ${nearbyStoresWithDeals.length} tienen descuentos compatibles cargados.`}</p></div><button className="primary-button" type="button" disabled={locating} onClick={requestLocation}>{locating ? "Buscando…" : "Usar mi ubicación"}</button></div>
             <div className="privacy-note">La ubicación se usa solo para esta consulta y no se guarda en tu perfil ni en la memoria.</div>
-            {location && <><div className="map-legend"><span><i className="deal-dot" /> Con descuento compatible</span><span><i /> Sin descuento cargado</span></div><div className="map-layout"><StoreMap location={location} stores={nearbyStores} dealsByStore={dealsByStore} /><div className="nearby-list">{[...nearbyStores].sort((left, right) => Number(Boolean(dealsByStore[right.id]?.length)) - Number(Boolean(dealsByStore[left.id]?.length)) || left.distanceKm - right.distanceKm).slice(0, 10).map((store) => {
+            {location && <><div className="map-legend"><span><i className="deal-dot" /> Promoción verificada</span><span><i className="public-dot" /> Referencia de fuente pública</span><span><i /> Sin descuento cargado</span></div><div className="map-layout"><StoreMap location={location} stores={nearbyStores} dealsByStore={dealsByStore} /><div className="nearby-list">{[...nearbyStores].sort((left, right) => Number(Boolean(dealsByStore[right.id]?.length)) - Number(Boolean(dealsByStore[left.id]?.length)) || left.distanceKm - right.distanceKm).slice(0, 10).map((store) => {
               const storeDeals = dealsByStore[store.id] ?? [];
-              return <article className={storeDeals.length ? "has-deal" : ""} key={store.id}><div><strong>{store.name}</strong><small>{store.distanceKm.toFixed(1)} km</small></div>{storeDeals.length ? storeDeals.map((deal) => <div className="store-deal-detail" key={`${deal.title}-${deal.day}`}><span className="store-deal">{deal.day}: {deal.discount} posible*</span><small>{deal.paymentLabels.join(" · ")}</small></div>) : <span>Sin beneficio compatible cargado</span>}<a href={`https://www.openstreetmap.org/?mlat=${store.latitude}&mlon=${store.longitude}#map=18/${store.latitude}/${store.longitude}`} target="_blank" rel="noreferrer">Abrir mapa</a></article>;
+              return <article className={storeDeals.length ? "has-deal" : ""} key={store.id}><div><strong>{store.name}</strong><small>{store.distanceKm.toFixed(1)} km</small></div>{storeDeals.length ? storeDeals.map((deal) => <div className="store-deal-detail" key={`${deal.kind}-${deal.title}-${deal.day}`}><span className={deal.kind === "verified" ? "store-deal" : "store-public-deal"}>{deal.day}: {deal.discount} posible*</span><small>{deal.paymentLabels.join(" · ")}</small>{deal.kind === "public-reference" && <small>Referencia encontrada en la fuente oficial; revisá las condiciones.</small>}</div>) : <span>Sin beneficio compatible cargado</span>}<a href={`https://www.openstreetmap.org/?mlat=${store.latitude}&mlon=${store.longitude}#map=18/${store.latitude}/${store.longitude}`} target="_blank" rel="noreferrer">Abrir mapa</a></article>;
             })}</div></div></>}
             {location && nearbyStores.length > 0 && <small>*La cercanía no garantiza adhesión a la promoción. Verificá el comercio en las condiciones oficiales.</small>}
           </section>
