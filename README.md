@@ -100,6 +100,9 @@ tests/
   payments-and-persistence.test.mjs   Pagos, promociones y almacenamiento
 ```
 
+La explicación completa y los diagramas se encuentran en
+[`docs/arquitectura.md`](docs/arquitectura.md).
+
 ## Datos y limitaciones
 
 - El perfil y la memoria se guardan en el navegador bajo
