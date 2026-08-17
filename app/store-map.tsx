@@ -9,6 +9,7 @@ export type StoreDeal = {
   paymentLabels: string[];
   title: string;
   kind: "verified" | "public-reference";
+  sourceUrl?: string;
 };
 
 export function StoreMap({ location, stores, dealsByStore }: { location: Coordinates; stores: NearbyStore[]; dealsByStore: Record<string, StoreDeal[]> }) {
@@ -39,6 +40,14 @@ export function StoreMap({ location, stores, dealsByStore }: { location: Coordin
           benefit.className = "map-popup-deal";
           benefit.textContent = `${deal.day}: ${deal.discount} · ${deal.paymentLabels.join(", ")}${deal.kind === "public-reference" ? " · referencia pública" : ""}`;
           popup.append(benefit);
+          if (deal.sourceUrl) {
+            const source = document.createElement("a");
+            source.href = deal.sourceUrl;
+            source.target = "_blank";
+            source.rel = "noreferrer";
+            source.textContent = "Ver fuente oficial";
+            popup.append(source);
+          }
         });
         if (!deals.length) {
           const noDeal = document.createElement("small");

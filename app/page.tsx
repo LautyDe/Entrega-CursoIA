@@ -60,6 +60,11 @@ type PublicBenefitDiscovery = {
   status: "available" | "unavailable" | "unsupported";
   checkedAt: string; publicBenefits: string[]; message: string;
 };
+type StoreBenefitDiscovery = {
+  store: string; sourceUrl: string; sourceLabel: string;
+  status: "available" | "unavailable"; checkedAt: string; message: string;
+  references: Array<ReturnType<typeof extractPublicBenefitReferences>[number] & { provider: string; sourceUrl: string; sourceLabel: string }>;
+};
 type PlanResponse = {
   mode: string; summary: string; agentTrace: string[];
   week: Meal[]; shopping: Omit<ShoppingItem, "id">[];
@@ -230,6 +235,7 @@ export default function Home() {
   const [newPayment, setNewPayment] = useState<PaymentMethod>({ bank: "Banco Nación", cardType: "Débito" });
   const [pendingUnknownPayment, setPendingUnknownPayment] = useState<PaymentMethod | null>(null);
   const [publicBenefitDiscoveries, setPublicBenefitDiscoveries] = useState<PublicBenefitDiscovery[]>([]);
+  const [storeBenefitDiscoveries, setStoreBenefitDiscoveries] = useState<StoreBenefitDiscovery[]>([]);
   const [discoveringBenefits, setDiscoveringBenefits] = useState(false);
   const scanInputRef = useRef<HTMLInputElement>(null);
 
@@ -296,9 +302,11 @@ export default function Home() {
     }));
   }, [state.profile.paymentBank, state.profile.paymentCardType, state.profile.paymentMethods]);
   const compatiblePromotionList = useMemo(() => compatiblePromotions(activePaymentMethods), [activePaymentMethods]);
-  const publicBenefitReferences = useMemo(() => publicBenefitDiscoveries.flatMap((discovery) =>
-    extractPublicBenefitReferences(discovery.publicBenefits).map((reference) => ({ ...reference, provider: discovery.provider })),
-  ), [publicBenefitDiscoveries]);
+  const publicBenefitReferences = useMemo(() => [
+    ...publicBenefitDiscoveries.flatMap((discovery) =>
+      extractPublicBenefitReferences(discovery.publicBenefits).map((reference) => ({ ...reference, provider: discovery.provider, sourceUrl: discovery.sourceUrl }))),
+    ...storeBenefitDiscoveries.flatMap((discovery) => discovery.references),
+  ], [publicBenefitDiscoveries, storeBenefitDiscoveries]);
   const dealsByStore = useMemo(() => Object.fromEntries(nearbyStores.map((store) => {
     const verifiedDeals: StoreDeal[] = compatiblePromotionList
       .filter((promotion) => promotionMatchesStore(promotion, store.name, store.brand))
@@ -307,6 +315,7 @@ export default function Home() {
         day: promotion.day,
         discount: promotion.discount,
         kind: "verified" as const,
+        sourceUrl: promotion.sourceUrl,
         paymentLabels: paymentMethodsForPromotion(promotion, activePaymentMethods)
           .map((method) => `${method.bank} ${method.cardType.toLowerCase()}`),
       }));
@@ -322,6 +331,7 @@ export default function Home() {
           day: reference.day,
           discount: reference.discount,
           kind: "public-reference" as const,
+          sourceUrl: reference.sourceUrl,
           paymentLabels,
         };
       })
@@ -362,6 +372,24 @@ export default function Home() {
     }
   };
 
+  const refreshStoreBenefits = async (stores: NearbyStore[]) => {
+    try {
+      const response = await fetch("/api/store-promotions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentMethods: activePaymentMethods,
+          stores: stores.map(({ name, brand }) => ({ name, brand })),
+        }),
+      });
+      if (!response.ok) throw new Error("store-benefits");
+      const result = await response.json() as { discoveries: StoreBenefitDiscovery[] };
+      setStoreBenefitDiscoveries(result.discoveries);
+    } catch {
+      setStoreBenefitDiscoveries([]);
+    }
+  };
+
   const requestLocation = () => {
     if (!navigator.geolocation) {
       setLocationStatus("Este dispositivo no ofrece geolocalización.");
@@ -377,6 +405,7 @@ export default function Home() {
       try {
         const stores = await findNearbySupermarkets(current);
         setNearbyStores(stores);
+        void refreshStoreBenefits(stores);
         setLocationStatus(stores.length ? `${stores.length} supermercados encontrados con datos de OpenStreetMap.` : "No encontramos supermercados cargados en OpenStreetMap dentro de 5 km.");
       } catch {
         setLocationStatus("No pudimos consultar los locales ahora. Podés intentarlo nuevamente.");
@@ -951,9 +980,10 @@ export default function Home() {
           <section className="content-panel nearby-panel">
             <div className="panel-heading"><div><p className="eyebrow">CERCA TUYO</p><h2>Supermercados y descuentos en el mapa</h2><p>{locationStatus}{location && ` ${nearbyStoresWithDeals.length} tienen descuentos compatibles cargados.`}</p></div><button className="primary-button" type="button" disabled={locating} onClick={requestLocation}>{locating ? "Buscando…" : "Usar mi ubicación"}</button></div>
             <div className="privacy-note">La ubicación se usa solo para esta consulta y no se guarda en tu perfil ni en la memoria.</div>
+            {location && storeBenefitDiscoveries.length > 0 && <div className="store-source-summary"><strong>Fuentes de supermercados consultadas</strong>{storeBenefitDiscoveries.map((discovery) => <a href={discovery.sourceUrl} target="_blank" rel="noreferrer" key={discovery.store}>{discovery.store}: {discovery.references.length ? `${discovery.references.length} coincidencias` : discovery.status === "available" ? "sin coincidencias legibles" : "no disponible"} ↗</a>)}</div>}
             {location && <><div className="map-legend"><span><i className="deal-dot" /> Promoción verificada</span><span><i className="public-dot" /> Referencia de fuente pública</span><span><i /> Sin descuento cargado</span></div><div className="map-layout"><StoreMap location={location} stores={nearbyStores} dealsByStore={dealsByStore} /><div className="nearby-list">{[...nearbyStores].sort((left, right) => Number(Boolean(dealsByStore[right.id]?.length)) - Number(Boolean(dealsByStore[left.id]?.length)) || left.distanceKm - right.distanceKm).slice(0, 10).map((store) => {
               const storeDeals = dealsByStore[store.id] ?? [];
-              return <article className={storeDeals.length ? "has-deal" : ""} key={store.id}><div><strong>{store.name}</strong><small>{store.distanceKm.toFixed(1)} km</small></div>{storeDeals.length ? storeDeals.map((deal) => <div className="store-deal-detail" key={`${deal.kind}-${deal.title}-${deal.day}`}><span className={deal.kind === "verified" ? "store-deal" : "store-public-deal"}>{deal.day}: {deal.discount} posible*</span><small>{deal.paymentLabels.join(" · ")}</small>{deal.kind === "public-reference" && <small>Referencia encontrada en la fuente oficial; revisá las condiciones.</small>}</div>) : <span>Sin beneficio compatible cargado</span>}<a href={`https://www.openstreetmap.org/?mlat=${store.latitude}&mlon=${store.longitude}#map=18/${store.latitude}/${store.longitude}`} target="_blank" rel="noreferrer">Abrir mapa</a></article>;
+              return <article className={storeDeals.length ? "has-deal" : ""} key={store.id}><div><strong>{store.name}</strong><small>{store.distanceKm.toFixed(1)} km</small></div>{storeDeals.length ? storeDeals.map((deal) => <div className="store-deal-detail" key={`${deal.kind}-${deal.title}-${deal.day}`}><span className={deal.kind === "verified" ? "store-deal" : "store-public-deal"}>{deal.day}: {deal.discount} posible*</span><small>{deal.paymentLabels.join(" · ")}</small>{deal.kind === "public-reference" && <small>Referencia encontrada en la fuente oficial; revisá las condiciones.</small>}{deal.sourceUrl && <a href={deal.sourceUrl} target="_blank" rel="noreferrer">Ver condiciones</a>}</div>) : <span>Sin beneficio compatible cargado</span>}<a href={`https://www.openstreetmap.org/?mlat=${store.latitude}&mlon=${store.longitude}#map=18/${store.latitude}/${store.longitude}`} target="_blank" rel="noreferrer">Abrir mapa</a></article>;
             })}</div></div></>}
             {location && nearbyStores.length > 0 && <small>*La cercanía no garantiza adhesión a la promoción. Verificá el comercio en las condiciones oficiales.</small>}
           </section>

@@ -235,6 +235,22 @@
   margin: 0 0 12px;
 }
 
+.store-source-summary {
+  background: #fff9e8;
+  border: 1px solid #e5cf94;
+  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 0 0 12px;
+  padding: 11px 13px;
+}
+
+.store-source-summary a {
+  color: var(--wine);
+  font-weight: 700;
+}
+
 .map-legend span {
   align-items: center;
   display: inline-flex;

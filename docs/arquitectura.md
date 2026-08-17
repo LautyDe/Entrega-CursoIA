@@ -54,6 +54,7 @@ flowchart LR
 | Catálogo | Datos de demostración | Provee recetas y precios de referencia. |
 | Promociones verificadas | Datos externos curados | Conserva vigencia, fecha de verificación y fuente oficial. |
 | OpenStreetMap / Overpass | Datos abiertos externos | Busca supermercados próximos después del permiso de ubicación. |
+| Agente complementario de comercios | Consulta determinística bajo demanda | Consulta solo las páginas oficiales de cadenas detectadas cerca del usuario y filtra por los medios elegidos. |
 | `localStorage` | Persistencia local | Conserva perfil, memoria, inventario, compras y evaluaciones. |
 
 ## 2. Flujo de agentes
@@ -155,6 +156,9 @@ sequenceDiagram
 
 - Las restricciones de seguridad alimentaria se validan antes y después de
   planificar.
+- El ciclo principal conserva nueve agentes. La búsqueda desde supermercados
+  es un agente complementario disparado después de obtener la ubicación, porque
+  los comercios cercanos no forman parte de la solicitud de planificación.
 - Ningún calendario propuesto modifica el estado persistente sin confirmación.
 - Las promociones solo se aplican cuando coinciden exactamente banco y tipo de
   tarjeta, y su período de vigencia incluye la fecha de consulta.

@@ -10,6 +10,9 @@ inventario y los descuentos, reducir desperdicios y controlar el presupuesto.
 - `app/page.tsx`: interfaz React, estado del MVP y persistencia del navegador.
 - `app/api/plan/route.ts`: entrada HTTP del orquestador.
 - `lib/agents/orchestrator.ts`: ejecuta nueve agentes en orden.
+- `lib/agents/store-benefit-discovery-agent.ts`: agente complementario que
+  consulta fuentes oficiales de las cadenas cercanas después de obtener la
+  ubicación; no forma parte del ciclo de planificación.
 - `lib/agents/types.ts`: contratos compartidos.
 - `lib/agents/catalog.ts`: recetas y precios de demostración.
 - `tests/rendered-html.test.mjs`: integración del frontend y del ciclo agéntico.

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { extractPublicBenefitReferences, extractPublicBenefitSnippets, publicBenefitMatchesStore } from "../lib/public-benefit-extraction.ts";
+import { extractPublicBenefitReferences, extractPublicBenefitSnippets, extractStorePaymentReferences, publicBenefitMatchesStore } from "../lib/public-benefit-extraction.ts";
 
 test("extracts supermarket discounts from public HTML without scripts", () => {
   const snippets = extractPublicBenefitSnippets(`
@@ -40,4 +40,18 @@ test("structures only public references with store, day and discount", () => {
   }]);
   assert.equal(publicBenefitMatchesStore(references[0], "Carrefour Market Palermo", "Carrefour Market"), true);
   assert.equal(publicBenefitMatchesStore(references[0], "Coto Palermo", "Coto"), false);
+});
+
+test("filters an official supermarket page by the selected payment method", () => {
+  const html = `<section>Todos los martes 25% de ahorro pagando con MODO desde Supervielle con tarjetas de débito y crédito.</section>
+    <section>Todos los jueves 30% con tarjeta de crédito Banco Galicia.</section>`;
+  const references = extractStorePaymentReferences(html, "Coto", [
+    { bank: "Banco Supervielle", cardType: "Débito" },
+  ]);
+
+  assert.equal(references.length, 1);
+  assert.equal(references[0].store, "Coto");
+  assert.equal(references[0].provider, "Banco Supervielle");
+  assert.equal(references[0].day, "Martes");
+  assert.equal(references[0].discount, "25%");
 });

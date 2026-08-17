@@ -19,6 +19,9 @@ para comprar.
   oficiales.
 - Consulta bajo demanda de las páginas públicas oficiales correspondientes
   únicamente a los medios de pago seleccionados.
+- Consulta complementaria de las páginas oficiales de Carrefour, Coto, Día,
+  Jumbo, Disco, Vea y ChangoMás cuando alguna de esas cadenas aparece cerca
+  del usuario.
 - Mapa opcional de supermercados cercanos mediante geolocalización y datos de
   OpenStreetMap, con marcadores destacados cuando existe una promoción
   compatible con los medios seleccionados.
@@ -137,6 +140,10 @@ La explicación completa y los diagramas se encuentran en
 - Cuando una referencia pública contiene comercio, día y porcentaje legibles,
   puede aparecer en amarillo sobre el mapa. Sigue siendo informativa y no se
   utiliza para calcular ahorro hasta tener condiciones estructuradas completas.
+- El agente de comercios consulta solamente las cadenas detectadas en el mapa y
+  conserva únicamente publicaciones que mencionan alguno de los medios de pago
+  elegidos. Las páginas que no exponen condiciones legibles quedan informadas
+  como no disponibles, sin inventar una promoción.
 - Santander Cuenta Sueldo incluye oportunidades verificadas para ChangoMás,
   Jumbo, Disco, Vea, La Anónima, Carrefour y Día. La app muestra la condición
   de Plan Sueldo y exige confirmar vigencia y adhesión antes de comprar.
