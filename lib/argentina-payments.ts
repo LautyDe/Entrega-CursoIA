@@ -27,45 +27,6 @@ const providerAliases: Record<string, string[]> = {
   "Cuenta DNI": ["CuentaDNI"],
 };
 
-export type PaymentProviderCategory = "Banco" | "Billetera y app" | "Fintech y tarjeta";
-
-const walletProviders = new Set(["Mercado Pago", "MODO", "Buepp", "YOY", "Personal Pay", "Cuenta DNI"]);
-const fintechProviders = new Set(["Naranja X", "Ualá"]);
-
-export function paymentProviderCategory(provider: string): PaymentProviderCategory {
-  if (walletProviders.has(provider)) return "Billetera y app";
-  if (fintechProviders.has(provider)) return "Fintech y tarjeta";
-  return "Banco";
-}
-
-export function searchPaymentProviders(query: string) {
-  const normalizedQuery = normalizeProvider(query)
-    .replace(/\b(?:tarjetas?|credito|debito|prepaga|dinero en cuenta|visa|mastercard|master card|american express|amex|cabal)\b/g, " ")
-    .replace(/\b(?:con|de|del|y)\b/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return argentinaPaymentProviders
-    .map((provider) => {
-      const normalizedProvider = normalizeProvider(provider);
-      const aliases = providerAliases[provider] ?? [];
-      const matchedAlias = aliases.find((alias) => {
-        const normalizedAlias = normalizeProvider(alias);
-        return normalizedAlias.includes(normalizedQuery) || normalizedQuery.includes(normalizedAlias);
-      });
-      const score = !normalizedQuery ? 1
-        : normalizedProvider === normalizedQuery ? 100
-          : normalizedProvider.startsWith(normalizedQuery) ? 80
-            : matchedAlias && normalizeProvider(matchedAlias) === normalizedQuery ? 75
-              : normalizedProvider.includes(normalizedQuery) ? 60
-                : normalizedQuery.includes(normalizedProvider) ? 55
-                : matchedAlias ? 50 : 0;
-      return { provider, category: paymentProviderCategory(provider), matchedAlias, score };
-    })
-    .filter((result) => result.score > 0)
-    .sort((left, right) => right.score - left.score || left.provider.localeCompare(right.provider, "es-AR"))
-    .slice(0, normalizedQuery ? 10 : argentinaPaymentProviders.length);
-}
-
 export type ProviderBenefitSource = {
   provider: string;
   url: string;

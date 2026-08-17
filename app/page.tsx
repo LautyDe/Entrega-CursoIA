@@ -235,7 +235,7 @@ export default function Home() {
   const [nearbyStores, setNearbyStores] = useState<NearbyStore[]>([]);
   const [locationStatus, setLocationStatus] = useState("Usá tu ubicación para encontrar supermercados cercanos.");
   const [locating, setLocating] = useState(false);
-  const [newPayment, setNewPayment] = useState<PaymentMethod>({ bank: "", cardType: "Débito" });
+  const [newPayment, setNewPayment] = useState<PaymentMethod>({ bank: "Banco Nación", cardType: "Débito" });
   const [pendingUnknownPayment, setPendingUnknownPayment] = useState<PaymentMethod | null>(null);
   const [publicBenefitDiscoveries, setPublicBenefitDiscoveries] = useState<PublicBenefitDiscovery[]>([]);
   const [storeBenefitDiscoveries, setStoreBenefitDiscoveries] = useState<StoreBenefitDiscovery[]>([]);
