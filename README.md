@@ -42,6 +42,11 @@ sitio. Las secciones que producen resultados se recuerdan en la memoria
 temporal del proceso para consultarlas primero la próxima vez; ese aprendizaje
 se reinicia al volver a desplegar o iniciar el servidor.
 
+Las tiendas basadas en VTEX u otras aplicaciones pueden publicar condiciones
+dentro de datos estructurados embebidos. MealBoard analiza esos datos como
+texto sin ejecutar sus scripts, descarta vigencias vencidas cuando la fuente
+publica fechas y mantiene los resultados como referencias hasta verificarlos.
+
 ## Tecnologías
 
 - React 19

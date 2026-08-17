@@ -64,8 +64,8 @@ async function fetchPage(url: string, seed: URL, timeoutMs: number) {
     const contentType = response.headers.get("content-type") ?? "";
     if (!/text|html|json|javascript/i.test(contentType)) throw new Error("Unsupported content type");
     const contentLength = Number(response.headers.get("content-length") ?? 0);
-    if (contentLength > 2_000_000) throw new Error("Response too large");
-    const body = (await response.text()).slice(0, 2_000_000);
+    if (contentLength > 4_000_000) throw new Error("Response too large");
+    const body = (await response.text()).slice(0, 4_000_000);
     pageCache.set(url, { expiresAt: Date.now() + 3 * 60 * 60 * 1000, body });
     return body;
   } finally {

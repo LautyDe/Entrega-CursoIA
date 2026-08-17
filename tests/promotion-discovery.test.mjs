@@ -57,6 +57,37 @@ test("filters an official supermarket page by the selected payment method", () =
   assert.equal(references[0].discount, "25%");
 });
 
+test("reads promotion conditions embedded as official page data without executing scripts", () => {
+  const html = `<script type="application/ld+json">{"promotion":"Todos los sábados 20% de descuento",${'"conditions":"'.padEnd(900, "x")} Banco Santander con tarjeta de crédito"}</script>`;
+  const references = extractStorePaymentReferences(html, "Día", [
+    { bank: "Banco Santander", cardType: "Crédito" },
+  ]);
+
+  assert.equal(references.length, 1);
+  assert.equal(references[0].day, "Sábado");
+  assert.equal(references[0].discount, "20%");
+});
+
+test("discards an expired promotion embedded in an official store page", () => {
+  const html = `<script>Vigencia desde el 1 de mayo de 2026 hasta el 31 de mayo de 2026. Todos los sábados 20% de descuento. Banco Santander con tarjeta de crédito.</script>`;
+  const references = extractStorePaymentReferences(html, "Día", [
+    { bank: "Banco Santander", cardType: "Crédito" },
+  ], "2026-08-17");
+
+  assert.deepEqual(references, []);
+});
+
+test("does not treat a zero percentage as a supermarket offer", () => {
+  const references = extractStorePaymentReferences(
+    `<script>Todos los martes 0% de descuento con Mercado Pago.</script>`,
+    "Día",
+    [{ bank: "Mercado Pago", cardType: "Dinero en cuenta" }],
+    "2026-08-17",
+  );
+
+  assert.deepEqual(references, []);
+});
+
 test("follows only relevant sections inside the same official site", () => {
   const links = extractRelevantInternalLinks(`
     <a href="/beneficios/promociones-bancarias">Promociones bancarias</a>

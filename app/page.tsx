@@ -239,6 +239,7 @@ export default function Home() {
   const [publicBenefitDiscoveries, setPublicBenefitDiscoveries] = useState<PublicBenefitDiscovery[]>([]);
   const [storeBenefitDiscoveries, setStoreBenefitDiscoveries] = useState<StoreBenefitDiscovery[]>([]);
   const [discoveringBenefits, setDiscoveringBenefits] = useState(false);
+  const [discoveringStoreBenefits, setDiscoveringStoreBenefits] = useState(false);
   const scanInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -375,6 +376,7 @@ export default function Home() {
   };
 
   const refreshStoreBenefits = async (stores: NearbyStore[]) => {
+    setDiscoveringStoreBenefits(true);
     try {
       const response = await fetch("/api/store-promotions", {
         method: "POST",
@@ -389,6 +391,8 @@ export default function Home() {
       setStoreBenefitDiscoveries(result.discoveries);
     } catch {
       setStoreBenefitDiscoveries([]);
+    } finally {
+      setDiscoveringStoreBenefits(false);
     }
   };
 
@@ -980,7 +984,7 @@ export default function Home() {
             })}</div>
           </section>
           <section className="content-panel nearby-panel">
-            <div className="panel-heading"><div><p className="eyebrow">CERCA TUYO</p><h2>Supermercados y descuentos en el mapa</h2><p>{locationStatus}{location && ` ${nearbyStoresWithDeals.length} tienen descuentos compatibles cargados.`}</p></div><button className="primary-button" type="button" disabled={locating} onClick={requestLocation}>{locating ? "Buscando…" : "Usar mi ubicación"}</button></div>
+            <div className="panel-heading"><div><p className="eyebrow">CERCA TUYO</p><h2>Supermercados y descuentos en el mapa</h2><p>{locationStatus}{location && (discoveringStoreBenefits ? " Buscando descuentos en las secciones oficiales…" : ` ${nearbyStoresWithDeals.length} tienen descuentos compatibles cargados.`)}</p></div><button className="primary-button" type="button" disabled={locating} onClick={requestLocation}>{locating ? "Buscando…" : "Usar mi ubicación"}</button></div>
             <div className="privacy-note">La ubicación se usa solo para esta consulta y no se guarda en tu perfil ni en la memoria.</div>
             {location && storeBenefitDiscoveries.length > 0 && <div className="store-source-summary"><strong>Fuentes de supermercados consultadas</strong>{storeBenefitDiscoveries.map((discovery) => <a href={discovery.sourceUrl} target="_blank" rel="noreferrer" key={discovery.store}>{discovery.store}: {discovery.references.length ? `${discovery.references.length} coincidencias` : discovery.status === "available" ? "sin coincidencias legibles" : "no disponible"}{discovery.pagesChecked ? ` · ${discovery.pagesChecked} secciones` : ""} ↗</a>)}</div>}
             {location && <><div className="map-legend"><span><i className="deal-dot" /> Promoción verificada</span><span><i className="public-dot" /> Referencia de fuente pública</span><span><i /> Sin descuento cargado</span></div><div className="map-layout"><StoreMap location={location} stores={nearbyStores} dealsByStore={dealsByStore} /><div className="nearby-list">{[...nearbyStores].sort((left, right) => Number(Boolean(dealsByStore[right.id]?.length)) - Number(Boolean(dealsByStore[left.id]?.length)) || left.distanceKm - right.distanceKm).slice(0, 10).map((store) => {
