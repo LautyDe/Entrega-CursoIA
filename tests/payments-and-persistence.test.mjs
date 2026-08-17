@@ -7,6 +7,7 @@ import {
   selectBestPromotion,
 } from "../lib/payments.ts";
 import { parseStoredState, serializeStoredState } from "../lib/persistence.ts";
+import { compatiblePromotions } from "../lib/argentina-payments.ts";
 
 const promotions = [
   { day: "Miércoles", store: "Carrefour", bank: "Banco Ciudad", cardType: "Débito", discount: "20%", cap: "$8.000" },
@@ -47,7 +48,11 @@ test("migra el medio de pago anterior separado por punto medio", () => {
       { payment: "Banco Ciudad · Crédito" },
       { bank: "Banco Nación", cardType: "Débito" },
     ),
-    { paymentBank: "Banco Ciudad", paymentCardType: "Crédito" },
+    {
+      paymentBank: "Banco Ciudad",
+      paymentCardType: "Crédito",
+      paymentMethods: [{ bank: "Banco Ciudad", cardType: "Crédito" }],
+    },
   );
 });
 
@@ -60,4 +65,17 @@ test("la persistencia conserva el medio de pago separado", () => {
   assert.deepEqual(parseStoredState(serializeStoredState(state)), state);
   assert.equal(parseStoredState("contenido inválido"), null);
   assert.equal(parseStoredState("[]"), null);
+});
+
+test("cruza varios medios y excluye promociones fuera de vigencia", () => {
+  const methods = [
+    { bank: "Banco Galicia", cardType: "Débito" },
+    { bank: "Banco Hipotecario", cardType: "Débito" },
+  ];
+
+  assert.deepEqual(
+    compatiblePromotions(methods, "2026-08-17").map((promotion) => promotion.id),
+    ["hipotecario-mami-2026"],
+  );
+  assert.deepEqual(compatiblePromotions(methods, "2027-01-01"), []);
 });

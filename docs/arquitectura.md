@@ -29,7 +29,8 @@ flowchart LR
     LS -->|Perfil, memoria e historial| UI
     UI -->|Memoria previa en el siguiente ciclo| API
 
-    DEMO[(Catálogo, precios, promociones y comunidad de demostración)] --> AG
+    DEMO[(Catálogo, precios y comunidad de demostración)] --> AG
+    PROMO[(Promociones curadas con fuente y vigencia)] --> AG
 
     classDef actor fill:#f8efe5,stroke:#7b2638,color:#311;
     classDef traditional fill:#fff,stroke:#5b6658,color:#222;
@@ -38,7 +39,7 @@ flowchart LR
     class U actor;
     class UI,API,ORQ traditional;
     class AG agent;
-    class LS,DEMO memory;
+    class LS,DEMO,PROMO memory;
 ```
 
 ### Clasificación de componentes
@@ -49,7 +50,9 @@ flowchart LR
 | API `/api/plan` | Lógica tradicional | Valida la entrada mínima y expone el orquestador por HTTP. |
 | Orquestador | Coordinación agéntica | Ejecuta los ocho módulos en un orden fijo. |
 | Ocho agentes | IA simbólica basada en reglas | Analizan restricciones y construyen una recomendación explicable. |
-| Catálogo y promociones | Datos de demostración | Proveen recetas, precios y descuentos sin afirmar actualidad. |
+| Catálogo | Datos de demostración | Provee recetas y precios de referencia. |
+| Promociones verificadas | Datos externos curados | Conserva vigencia, fecha de verificación y fuente oficial. |
+| OpenStreetMap / Overpass | Datos abiertos externos | Busca supermercados próximos después del permiso de ubicación. |
 | `localStorage` | Persistencia local | Conserva perfil, memoria, inventario, compras y evaluaciones. |
 
 ## 2. Flujo de agentes
@@ -151,8 +154,12 @@ sequenceDiagram
   planificar.
 - Ningún calendario propuesto modifica el estado persistente sin confirmación.
 - Las promociones solo se aplican cuando coinciden exactamente banco y tipo de
-  tarjeta.
-- Precios, promociones y actividad comunitaria son datos de demostración.
+  tarjeta, y su período de vigencia incluye la fecha de consulta.
+- Los precios y la actividad comunitaria son datos de demostración. Las
+  promociones enlazan sus condiciones oficiales y requieren confirmación antes
+  de pagar.
+- La geolocalización es opcional, no se persiste y se envía a Overpass solo al
+  solicitar supermercados cercanos.
 - La persistencia en `localStorage` simplifica el MVP y evita costos, pero no
   sincroniza información entre dispositivos y no reemplaza una base de datos
   multiusuario.

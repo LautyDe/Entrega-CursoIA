@@ -14,10 +14,13 @@ export function runShoppingAgent(state: WorkingState): WorkingState {
   const estimatedCost = shopping.reduce((sum, item) => sum + item.price, 0);
 
   const promotions = state.input.promotions ?? [];
-  const bestPromotion = selectBestPromotion({
-    bank: state.input.profile.paymentBank,
-    cardType: state.input.profile.paymentCardType,
-  }, promotions);
+  const paymentMethods = state.input.profile.paymentMethods?.length
+    ? state.input.profile.paymentMethods
+    : [{ bank: state.input.profile.paymentBank, cardType: state.input.profile.paymentCardType }];
+  const bestPromotion = paymentMethods
+    .map((payment) => selectBestPromotion(payment, promotions))
+    .filter((promotion): promotion is NonNullable<typeof promotion> => Boolean(promotion))
+    .sort((a, b) => Number.parseInt(b.discount) - Number.parseInt(a.discount))[0];
   const estimatedSaving = promotionSaving(estimatedCost, bestPromotion);
 
   return addRun({
@@ -33,7 +36,7 @@ export function runShoppingAgent(state: WorkingState): WorkingState {
     observation: `${required.length} ingredientes requeridos y ${state.inventoryNames.length} disponibles.`,
     decision: bestPromotion
       ? `Recomendar ${bestPromotion.day} en ${bestPromotion.store} con ${bestPromotion.discount}, ${bestPromotion.cardType.toLowerCase()} de ${bestPromotion.bank}.`
-      : `No hay promociones compatibles con ${state.input.profile.paymentCardType.toLowerCase()} de ${state.input.profile.paymentBank}.`,
+      : `No hay promociones vigentes compatibles con los ${paymentMethods.length} medios de pago seleccionados.`,
     output: `${shopping.length} productos faltantes; compra estimada $${estimatedCost.toLocaleString("es-AR")}; ahorro $${Math.round(estimatedSaving || 0).toLocaleString("es-AR")}.`,
   });
 }

@@ -2,8 +2,11 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { recipeCatalog } from "../lib/agents/catalog";
-import { migrateLegacyPayment, promotionSaving, selectBestPromotion, type CardType } from "../lib/payments";
+import { argentinaCardTypes, argentinaPaymentProviders, compatiblePromotions, paymentKey, verifiedPromotions } from "../lib/argentina-payments";
+import { findNearbySupermarkets, type Coordinates, type NearbyStore } from "../lib/nearby-stores";
+import { migrateLegacyPayment, promotionSaving, selectBestPromotion, type CardType, type PaymentMethod } from "../lib/payments";
 import { MEALBOARD_STORAGE_KEY, parseStoredState, serializeStoredState } from "../lib/persistence";
+import { StoreMap } from "./store-map";
 
 type MealSlot = "breakfast" | "lunch" | "snack" | "dinner";
 type Meal = {
@@ -21,7 +24,8 @@ type ShoppingItem = { id: number; name: string; amount: string; price: number; c
 type Profile = {
   name: string; budget: number; level: string; dislikes: string;
   likes: string;
-  allergies: string; appliances: string; paymentBank: string; paymentCardType: CardType; nutrition: boolean;
+  allergies: string; appliances: string; paymentBank: string; paymentCardType: CardType;
+  paymentMethods: PaymentMethod[]; nutrition: boolean;
   city: string; planningDay: string; plannedMeals: MealSlot[];
 };
 type CommunityComment = { id: number; author: string; text: string };
@@ -99,7 +103,8 @@ const defaultProfile: Profile = {
   name: "Lucía Díaz", budget: 35000, level: "Principiante", dislikes: "Aceitunas",
   likes: "Lentejas, pasta y verduras",
   allergies: "Ninguna", appliances: "Horno, anafe, microondas y licuadora",
-  paymentBank: "Banco Ciudad", paymentCardType: "Débito", nutrition: true, city: "Ciudad de Buenos Aires",
+  paymentBank: "Banco Nación", paymentCardType: "Crédito",
+  paymentMethods: [{ bank: "Banco Nación", cardType: "Crédito" }], nutrition: true, city: "Ciudad de Buenos Aires",
   planningDay: "Domingo", plannedMeals: ["lunch", "dinner"],
 };
 
@@ -109,11 +114,20 @@ const initialCommunity: CommunityCalendar[] = [
   { id: "una-olla", creator: "Una olla", title: "Una sola olla, cero estrés", rating: 4.7, ratings: 196, saves: 980, tag: "Principiante", accent: "gold", description: "Recetas guiadas, sin técnicas difíciles y usando un solo recipiente.", favorite: false, followed: false, comments: [{ id: 4, author: "Lucas", text: "Aprendí a cocinar con este calendario." }] },
 ];
 
-const promotions = [
-  { day: "Miércoles", store: "Carrefour", bank: "Banco Ciudad", cardType: "Débito", discount: "20%", cap: "$8.000" },
-  { day: "Jueves", store: "Coto", bank: "Banco Galicia", cardType: "Crédito", discount: "15%", cap: "$6.000" },
-  { day: "Sábado", store: "Día", bank: "Banco Nación", cardType: "Débito", discount: "25%", cap: "$5.000" },
-] as const;
+const promotions = verifiedPromotions.flatMap((promotion) => promotion.banks.flatMap((bank) =>
+  promotion.cardTypes.map((cardType) => ({
+    day: promotion.day,
+    store: promotion.storeBrands.join(", ") || "Supermercados adheridos",
+    bank,
+    cardType,
+    discount: promotion.discount,
+    cap: promotion.cap,
+    sourceUrl: promotion.sourceUrl,
+    verifiedAt: promotion.verifiedAt,
+    validThrough: promotion.validThrough,
+    method: promotion.method,
+  })),
+));
 
 const initialState: AppState = {
   week: initialWeek,
@@ -201,6 +215,11 @@ export default function Home() {
   const [newShopping, setNewShopping] = useState({ name: "", amount: "", price: "" });
   const [reviewDraft, setReviewDraft] = useState({ prepared: "10", liked: "", easy: "Sí", spent: "", discountUsed: true, reason: "Cumplí casi todo" });
   const [memoryDraft, setMemoryDraft] = useState<MemoryRecord | null>(null);
+  const [location, setLocation] = useState<Coordinates | null>(null);
+  const [nearbyStores, setNearbyStores] = useState<NearbyStore[]>([]);
+  const [locationStatus, setLocationStatus] = useState("Usá tu ubicación para encontrar supermercados cercanos.");
+  const [locating, setLocating] = useState(false);
+  const [newPayment, setNewPayment] = useState<PaymentMethod>({ bank: "Banco Nación", cardType: "Débito" });
   const scanInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -256,13 +275,61 @@ export default function Home() {
   const checkedTotal = state.shopping.filter((item) => item.checked).reduce((sum, item) => sum + item.price, 0);
   const budgetLeft = state.profile.budget - shoppingTotal;
   const urgentInventory = state.inventory.filter(expiryUrgent);
-  const bestPromotion = selectBestPromotion({
-    bank: state.profile.paymentBank,
-    cardType: state.profile.paymentCardType,
-  }, promotions);
+  const activePaymentMethods = state.profile.paymentMethods.length
+    ? state.profile.paymentMethods
+    : [{ bank: state.profile.paymentBank, cardType: state.profile.paymentCardType }];
+  const compatiblePromotionList = compatiblePromotions(activePaymentMethods);
+  const bestPromotion = activePaymentMethods
+    .map((payment) => selectBestPromotion(payment, promotions))
+    .filter((promotion): promotion is NonNullable<typeof promotion> => Boolean(promotion))
+    .sort((a, b) => Number.parseInt(b.discount) - Number.parseInt(a.discount))[0];
   const estimatedPromoSaving = promotionSaving(shoppingTotal, bestPromotion);
   const savedFromPurchases = state.purchases.reduce((sum, purchase) => sum + purchase.saved, 0);
   const totalPrepared = state.reviews.reduce((sum, review) => sum + review.prepared, 0);
+
+  const requestLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationStatus("Este dispositivo no ofrece geolocalización.");
+      return;
+    }
+    setLocating(true);
+    setLocationStatus("Solicitando permiso de ubicación…");
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const current = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+      setLocation(current);
+      setLocationStatus("Buscando supermercados en un radio de 5 km…");
+      try {
+        const stores = await findNearbySupermarkets(current);
+        setNearbyStores(stores);
+        setLocationStatus(stores.length ? `${stores.length} supermercados encontrados con datos de OpenStreetMap.` : "No encontramos supermercados cargados en OpenStreetMap dentro de 5 km.");
+      } catch {
+        setLocationStatus("No pudimos consultar los locales ahora. Podés intentarlo nuevamente.");
+      } finally {
+        setLocating(false);
+      }
+    }, () => {
+      setLocating(false);
+      setLocationStatus("No se compartió la ubicación. MealBoard sigue funcionando sin el mapa.");
+    }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 });
+  };
+
+  const addPaymentMethod = () => {
+    if (state.profile.paymentMethods.some((payment) => paymentKey(payment) === paymentKey(newPayment))) {
+      notify("Ese medio de pago ya está seleccionado");
+      return;
+    }
+    const paymentMethods = [...state.profile.paymentMethods, newPayment];
+    setState({ ...state, profile: { ...state.profile, paymentMethods, paymentBank: paymentMethods[0].bank, paymentCardType: paymentMethods[0].cardType } });
+  };
+
+  const removePaymentMethod = (payment: PaymentMethod) => {
+    const paymentMethods = state.profile.paymentMethods.filter((item) => paymentKey(item) !== paymentKey(payment));
+    if (!paymentMethods.length) {
+      notify("Mantené al menos un medio de pago");
+      return;
+    }
+    setState({ ...state, profile: { ...state.profile, paymentMethods, paymentBank: paymentMethods[0].bank, paymentCardType: paymentMethods[0].cardType } });
+  };
 
   const notifications = [
     ...(urgentInventory.length ? [{ icon: "!", title: `${urgentInventory.length} alimentos próximos a vencer`, detail: urgentInventory.map((item) => item.name).join(", ") }] : []),
@@ -666,7 +733,7 @@ export default function Home() {
               </article>
               <article className="discount-card">
                 <p className="eyebrow">PRÓXIMA COMPRA</p><h2>{bestPromotion ? `${bestPromotion.day} con ${bestPromotion.discount} de ahorro` : "Sin promoción compatible"}</h2>
-                <p>{bestPromotion ? `${bestPromotion.bank} tiene descuento con ${bestPromotion.cardType.toLowerCase()} en ${bestPromotion.store}. Tope ${bestPromotion.cap}.` : `No hay descuentos de demostración para ${state.profile.paymentCardType.toLowerCase()} de ${state.profile.paymentBank}.`}</p>
+                <p>{bestPromotion ? `${bestPromotion.bank} tiene descuento con ${bestPromotion.cardType.toLowerCase()} en ${bestPromotion.store}. Tope ${bestPromotion.cap}.` : "No hay descuentos vigentes verificados para los medios de pago seleccionados."}</p>
                 <button className="discount-action" onClick={() => setActiveTab("shopping")} type="button">Ver lista de compras <span>→</span></button>
               </article>
             </section>
@@ -744,7 +811,7 @@ export default function Home() {
           </section>
         )}
 
-        {activeTab === "shopping" && (
+        {activeTab === "shopping" && (<>
           <section className="split-layout shopping-layout">
             <article className="content-panel">
               <div className="panel-heading"><div><p className="eyebrow">PARA ESTA SEMANA</p><h2>{state.shopping.length} productos por comprar</h2></div><strong className="total">{money(shoppingTotal)}</strong></div>
@@ -768,14 +835,24 @@ export default function Home() {
               <button className="primary-button full purchase-button" type="button" onClick={completePurchase}>Finalizar compra y actualizar inventario</button>
             </article>
             <aside className="promo-card">
-              <span className="promo-badge">DATOS DE DEMOSTRACIÓN</span><p className="eyebrow">{bestPromotion ? `COMPRÁ EL ${bestPromotion.day.toUpperCase()}` : "SIN COINCIDENCIAS"}</p><h2>{bestPromotion ? `${bestPromotion.discount} con ${bestPromotion.bank}` : "No hay promoción compatible"}</h2>
-              <p>{bestPromotion ? `Con ${bestPromotion.cardType.toLowerCase()} en ${bestPromotion.store} y comercios adheridos. Tope de reintegro: ${bestPromotion.cap}.` : `Revisamos banco y tipo de tarjeta. No aplicaremos un descuento de otro medio de pago.`}</p>
+              <span className="promo-badge">PROMOCIÓN VERIFICADA</span><p className="eyebrow">{bestPromotion ? `COMPRÁ EL ${bestPromotion.day.toUpperCase()}` : "SIN COINCIDENCIAS VIGENTES"}</p><h2>{bestPromotion ? `${bestPromotion.discount} con ${bestPromotion.bank}` : "No hay promoción compatible"}</h2>
+              <p>{bestPromotion ? `Con ${bestPromotion.cardType.toLowerCase()} en ${bestPromotion.store}. Tope: ${bestPromotion.cap}.` : `Revisamos todos tus medios guardados sin aplicar beneficios vencidos o incompatibles.`}</p>
               <div className="promo-saving"><span>Ahorro estimado</span><strong>{money(estimatedPromoSaving)}</strong></div>
               {shoppingTotal > state.profile.budget && <div className="budget-warning">La lista supera tu presupuesto por {money(shoppingTotal - state.profile.budget)}. Podés quitar productos o generar un plan más económico.</div>}
-              <small>Promociones precargadas y cruzadas con tu medio de pago.</small>
+              {bestPromotion && <><small>Verificada: {bestPromotion.verifiedAt} · Vigente hasta: {bestPromotion.validThrough}</small><a className="promo-source" href={bestPromotion.sourceUrl} target="_blank" rel="noreferrer">Ver condiciones oficiales ↗</a></>}
+              <small>Los beneficios pueden cambiar o agotarse. Confirmalos con el banco antes de pagar.</small>
             </aside>
           </section>
-        )}
+          <section className="content-panel nearby-panel">
+            <div className="panel-heading"><div><p className="eyebrow">CERCA TUYO</p><h2>Supermercados y descuentos en el mapa</h2><p>{locationStatus}</p></div><button className="primary-button" type="button" disabled={locating} onClick={requestLocation}>{locating ? "Buscando…" : "Usar mi ubicación"}</button></div>
+            <div className="privacy-note">La ubicación se usa solo para esta consulta y no se guarda en tu perfil ni en la memoria.</div>
+            {location && <div className="map-layout"><StoreMap location={location} stores={nearbyStores} /><div className="nearby-list">{nearbyStores.slice(0, 10).map((store) => {
+              const storePromotions = compatiblePromotionList.filter((promotion) => !promotion.storeBrands.length || promotion.storeBrands.some((brand) => store.brand.toLowerCase().includes(brand.toLowerCase()) || store.name.toLowerCase().includes(brand.toLowerCase())));
+              return <article key={store.id}><div><strong>{store.name}</strong><small>{store.distanceKm.toFixed(1)} km</small></div>{storePromotions.length ? <span className="store-deal">{storePromotions[0].day}: {storePromotions[0].discount} posible*</span> : <span>Sin beneficio compatible cargado</span>}<a href={`https://www.openstreetmap.org/?mlat=${store.latitude}&mlon=${store.longitude}#map=18/${store.latitude}/${store.longitude}`} target="_blank" rel="noreferrer">Abrir mapa</a></article>;
+            })}</div></div>}
+            {location && nearbyStores.length > 0 && <small>*La cercanía no garantiza adhesión a la promoción. Verificá el comercio en las condiciones oficiales.</small>}
+          </section>
+        </>)}
 
         {activeTab === "savings" && (
           <section className="content-panel">
@@ -785,7 +862,7 @@ export default function Home() {
               <div><small>Compras registradas</small><strong>{state.purchases.length}</strong><span>{money(state.purchases.reduce((sum, item) => sum + item.spent, 0))} gastados</span></div>
             </div>
             <div className="savings-grid">
-              <article><p className="eyebrow">PROMOCIONES PRECARGADAS</p><h2>Oportunidades de la semana</h2>
+              <article><p className="eyebrow">PROMOCIONES VERIFICADAS</p><h2>Oportunidades de la semana</h2>
                 {promotions.map((promo) => <div className="promo-row" key={promo.day}><span>{promo.day.slice(0, 3)}</span><div><strong>{promo.discount} en {promo.store}</strong><small>{promo.bank} · {promo.cardType} · Tope {promo.cap}</small></div></div>)}
               </article>
               <article><p className="eyebrow">HISTORIAL DE COMPRAS</p><h2>Gasto y ahorro</h2>
@@ -822,8 +899,7 @@ export default function Home() {
                   <label>Presupuesto semanal<input type="number" value={state.profile.budget} onChange={(event) => setState({ ...state, profile: { ...state.profile, budget: Number(event.target.value) } })} /></label>
                   <label>Día de planificación<select value={state.profile.planningDay} onChange={(event) => setState({ ...state, profile: { ...state.profile, planningDay: event.target.value } })}>{["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"].map((day) => <option key={day}>{day}</option>)}</select></label>
                   <label>Nivel de cocina<select value={state.profile.level} onChange={(event) => setState({ ...state, profile: { ...state.profile, level: event.target.value } })}><option>Principiante</option><option>Intermedio</option><option>Avanzado</option></select></label>
-                  <label>Banco<select value={state.profile.paymentBank} onChange={(event) => setState({ ...state, profile: { ...state.profile, paymentBank: event.target.value } })}><option>Banco Ciudad</option><option>Banco Galicia</option><option>Banco Nación</option><option>Otro banco</option></select></label>
-                  <label>Tipo de tarjeta<select value={state.profile.paymentCardType} onChange={(event) => setState({ ...state, profile: { ...state.profile, paymentCardType: event.target.value as CardType } })}><option>Débito</option><option>Crédito</option></select></label>
+                  <fieldset className="wide payment-selector"><legend>Medios de pago disponibles</legend><div className="payment-add"><label>Banco o billetera<input list="payment-providers" value={newPayment.bank} onChange={(event) => setNewPayment({ ...newPayment, bank: event.target.value })} /><datalist id="payment-providers">{argentinaPaymentProviders.map((provider) => <option key={provider} value={provider} />)}</datalist></label><label>Tipo<select value={newPayment.cardType} onChange={(event) => setNewPayment({ ...newPayment, cardType: event.target.value as CardType })}>{argentinaCardTypes.map((cardType) => <option key={cardType}>{cardType}</option>)}</select></label><button className="secondary-button" type="button" onClick={addPaymentMethod}>Agregar</button></div><div className="payment-chips">{state.profile.paymentMethods.map((payment) => <button type="button" key={paymentKey(payment)} onClick={() => removePaymentMethod(payment)} aria-label={`Quitar ${payment.cardType} de ${payment.bank}`}>{payment.bank} · {payment.cardType} <span>×</span></button>)}</div><small>Elegí una opción argentina o escribí otra entidad. Podés agregar todas tus combinaciones.</small></fieldset>
                   <label>Comidas e ingredientes preferidos<input value={state.profile.likes} onChange={(event) => setState({ ...state, profile: { ...state.profile, likes: event.target.value } })} /></label>
                   <label>Comidas que no te gustan<input value={state.profile.dislikes} onChange={(event) => setState({ ...state, profile: { ...state.profile, dislikes: event.target.value } })} /></label>
                   <label>Alergias y restricciones<input value={state.profile.allergies} onChange={(event) => setState({ ...state, profile: { ...state.profile, allergies: event.target.value } })} /></label>

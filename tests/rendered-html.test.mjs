@@ -116,5 +116,5 @@ test("does not apply an incompatible payment promotion", async () => {
   assert.equal(response.status, 200);
   const plan = await response.json();
   assert.equal(plan.estimatedSaving, 0);
-  assert.match(plan.agentRun[6].decision, /No hay promociones compatibles/);
+  assert.match(plan.agentRun[6].decision, /No hay promociones vigentes compatibles/);
 });

@@ -1,4 +1,4 @@
-export type CardType = "Débito" | "Crédito";
+export type CardType = "Débito" | "Crédito" | "Prepaga" | "Dinero en cuenta";
 
 export type PaymentMethod = {
   bank: string;
@@ -44,12 +44,22 @@ export function promotionSaving(cost: number, promotion?: PaymentPromotion) {
 export function migrateLegacyPayment(
   profile: Record<string, unknown>,
   fallback: PaymentMethod,
-): { paymentBank: string; paymentCardType: CardType } {
+): { paymentBank: string; paymentCardType: CardType; paymentMethods: PaymentMethod[] } {
   const bank = typeof profile.paymentBank === "string" ? profile.paymentBank.trim() : "";
   const cardType = profile.paymentCardType === "Crédito" || profile.paymentCardType === "Débito"
     ? profile.paymentCardType
     : undefined;
-  if (bank && cardType) return { paymentBank: bank, paymentCardType: cardType };
+  const storedMethods = Array.isArray(profile.paymentMethods)
+    ? profile.paymentMethods.filter((item): item is PaymentMethod => {
+      if (!item || typeof item !== "object") return false;
+      const candidate = item as Record<string, unknown>;
+      return typeof candidate.bank === "string" && typeof candidate.cardType === "string";
+    })
+    : [];
+  if (storedMethods.length) {
+    return { paymentBank: storedMethods[0].bank, paymentCardType: storedMethods[0].cardType, paymentMethods: storedMethods };
+  }
+  if (bank && cardType) return { paymentBank: bank, paymentCardType: cardType, paymentMethods: [{ bank, cardType }] };
 
   const legacy = typeof profile.payment === "string" ? profile.payment : "";
   const legacyType: CardType | undefined = normalize(legacy).includes("credito")
@@ -57,8 +67,7 @@ export function migrateLegacyPayment(
     : normalize(legacy).includes("debito") ? "Débito" : undefined;
   const legacyBank = legacy.split(/[·|]/)[0]?.trim();
 
-  return {
-    paymentBank: bank || legacyBank || fallback.bank,
-    paymentCardType: cardType || legacyType || fallback.cardType,
-  };
+  const paymentBank = bank || legacyBank || fallback.bank;
+  const paymentCardType = cardType || legacyType || fallback.cardType;
+  return { paymentBank, paymentCardType, paymentMethods: [{ bank: paymentBank, cardType: paymentCardType }] };
 }

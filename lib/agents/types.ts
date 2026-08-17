@@ -15,7 +15,8 @@ export type ProfileInput = {
   allergies: string;
   appliances: string;
   paymentBank: string;
-  paymentCardType: "Débito" | "Crédito";
+  paymentCardType: CardType;
+  paymentMethods?: PaymentMethod[];
   nutrition?: boolean;
 };
 
@@ -23,7 +24,11 @@ export type PromotionInput = {
   day: string;
   store: string;
   bank: string;
-  cardType: "Débito" | "Crédito";
+  cardType: CardType;
+  sourceUrl?: string;
+  verifiedAt?: string;
+  validThrough?: string;
+  method?: string;
   discount: string;
   cap: string;
 };
@@ -140,3 +145,4 @@ export function addRun(
 ): WorkingState {
   return { ...state, trace: [...state.trace, { ...run, status: "completed" }] };
 }
+import type { CardType, PaymentMethod } from "../payments";

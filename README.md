@@ -15,8 +15,11 @@ para comprar.
   captura, memoria, análisis, comunidad, planificación, recetas, compras y
   evaluación.
 - Inventario con cantidades, precios y vencimientos.
-- Lista de compras y promociones precargadas, compatibles por banco y tipo de
-  tarjeta.
+- Lista de compras cruzada con múltiples bancos, billeteras y tipos de tarjeta.
+- Promociones con vigencia, fecha de verificación y enlace a condiciones
+  oficiales.
+- Mapa opcional de supermercados cercanos mediante geolocalización y datos de
+  OpenStreetMap.
 - Comunidad de calendarios para guardar, seguir, publicar y adaptar.
 - Memoria persistente en `localStorage`, editable por el usuario.
 - Confirmación humana antes de aplicar una planificación.
@@ -109,9 +112,13 @@ La explicación completa y los diagramas se encuentran en
   `mealboard-state`.
 - El medio de pago se guarda mediante banco y tipo de tarjeta separados. Los
   estados anteriores que usaban un único texto se migran al cargarse.
-- Los precios, promociones y calendarios sociales son demostrativos.
+- Los precios y calendarios sociales son demostrativos. Las promociones
+  identifican fuente y período de vigencia, pero siempre deben confirmarse con
+  la entidad antes de pagar porque pueden cambiar o agotarse.
 - Una promoción solo se aplica cuando coinciden exactamente el banco y el tipo
   de tarjeta; si no hay coincidencia, la compra no muestra un ahorro ficticio.
+- La ubicación requiere permiso explícito, se utiliza para una consulta puntual
+  de comercios cercanos y no se persiste en el perfil ni en la memoria.
 - No se deben presentar las recomendaciones nutricionales como asesoramiento
   médico.
 - Los alimentos vencidos y las alergias deben seguir teniendo prioridad sobre
