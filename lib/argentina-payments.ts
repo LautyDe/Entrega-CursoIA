@@ -39,16 +39,25 @@ export function paymentProviderCategory(provider: string): PaymentProviderCatego
 }
 
 export function searchPaymentProviders(query: string) {
-  const normalizedQuery = normalizeProvider(query);
+  const normalizedQuery = normalizeProvider(query)
+    .replace(/\b(?:tarjetas?|credito|debito|prepaga|dinero en cuenta|visa|mastercard|master card|american express|amex|cabal)\b/g, " ")
+    .replace(/\b(?:con|de|del|y)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   return argentinaPaymentProviders
     .map((provider) => {
       const normalizedProvider = normalizeProvider(provider);
-      const matchedAlias = (providerAliases[provider] ?? []).find((alias) => normalizeProvider(alias).includes(normalizedQuery));
+      const aliases = providerAliases[provider] ?? [];
+      const matchedAlias = aliases.find((alias) => {
+        const normalizedAlias = normalizeProvider(alias);
+        return normalizedAlias.includes(normalizedQuery) || normalizedQuery.includes(normalizedAlias);
+      });
       const score = !normalizedQuery ? 1
         : normalizedProvider === normalizedQuery ? 100
           : normalizedProvider.startsWith(normalizedQuery) ? 80
             : matchedAlias && normalizeProvider(matchedAlias) === normalizedQuery ? 75
               : normalizedProvider.includes(normalizedQuery) ? 60
+                : normalizedQuery.includes(normalizedProvider) ? 55
                 : matchedAlias ? 50 : 0;
       return { provider, category: paymentProviderCategory(provider), matchedAlias, score };
     })

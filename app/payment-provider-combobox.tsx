@@ -56,7 +56,7 @@ export function PaymentProviderCombobox({ value, onChange }: Props) {
         autoComplete="off"
         placeholder="Ej.: Santander Río, BNA o Mercado Pago"
         onChange={(event) => { onChange(event.target.value); setActiveIndex(0); setOpen(true); }}
-        onFocus={() => setOpen(true)}
+        onFocus={(event) => { setOpen(true); event.currentTarget.select(); }}
         onKeyDown={onKeyDown}
       />
       {value && <button type="button" aria-label="Limpiar búsqueda" onClick={() => { onChange(""); setActiveIndex(0); setOpen(true); }}>×</button>}

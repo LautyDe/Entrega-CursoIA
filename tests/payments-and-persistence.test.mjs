@@ -100,6 +100,8 @@ test("busca bancos y billeteras por nombre actual, alias y acentos", () => {
   assert.equal(searchPaymentProviders("BNA")[0].provider, "Banco Nación");
   assert.equal(searchPaymentProviders("mercadopago")[0].provider, "Mercado Pago");
   assert.equal(searchPaymentProviders("uala")[0].provider, "Ualá");
+  assert.equal(searchPaymentProviders("Santander Río crédito y débito")[0].provider, "Banco Santander");
+  assert.equal(searchPaymentProviders("Mercado Pago dinero en cuenta")[0].provider, "Mercado Pago");
   assert.equal(searchPaymentProviders("entidad inexistente").length, 0);
 });
 
