@@ -15,7 +15,8 @@ para comprar.
   captura, memoria, análisis, comunidad, planificación, recetas, compras y
   evaluación.
 - Inventario con cantidades, precios y vencimientos.
-- Lista de compras y promociones precargadas.
+- Lista de compras y promociones precargadas, compatibles por banco y tipo de
+  tarjeta.
 - Comunidad de calendarios para guardar, seguir, publicar y adaptar.
 - Memoria persistente en `localStorage`, editable por el usuario.
 - Confirmación humana antes de aplicar una planificación.
@@ -61,25 +62,13 @@ npm run lint
 npm test
 ```
 
-## Crear el repositorio Git
+## Repositorio
 
-Desde la terminal integrada:
+El código fuente se mantiene en
+[LautyDe/Entrega-CursoIA](https://github.com/LautyDe/Entrega-CursoIA).
 
-```bash
-git init
-git add .
-git commit -m "Primera versión funcional de MealBoard"
-git branch -M main
-```
-
-Después de crear un repositorio vacío en GitHub:
-
-```bash
-git remote add origin https://github.com/TU-USUARIO/mealboard.git
-git push -u origin main
-```
-
-Reemplazar `TU-USUARIO` por el nombre real de la cuenta.
+El trabajo local no publica cambios automáticamente. Los commits y el push se
+realizan de forma explícita después de revisar las modificaciones.
 
 ## Trabajar con Codex en VS Code
 
@@ -107,14 +96,19 @@ lib/agents/
   catalog.ts              Recetas y precios de demostración
   types.ts                Contratos del dominio
 tests/
-  rendered-html.test.mjs  Pruebas de integración
+  rendered-html.test.mjs              Pruebas de integración
+  payments-and-persistence.test.mjs   Pagos, promociones y almacenamiento
 ```
 
 ## Datos y limitaciones
 
 - El perfil y la memoria se guardan en el navegador bajo
   `mealboard-state`.
+- El medio de pago se guarda mediante banco y tipo de tarjeta separados. Los
+  estados anteriores que usaban un único texto se migran al cargarse.
 - Los precios, promociones y calendarios sociales son demostrativos.
+- Una promoción solo se aplica cuando coinciden exactamente el banco y el tipo
+  de tarjeta; si no hay coincidencia, la compra no muestra un ahorro ficticio.
 - No se deben presentar las recomendaciones nutricionales como asesoramiento
   médico.
 - Los alimentos vencidos y las alergias deben seguir teniendo prioridad sobre
