@@ -66,7 +66,7 @@ type StoreBenefitDiscovery = {
   store: string; sourceUrl: string; sourceLabel: string;
   status: "available" | "unavailable"; checkedAt: string; message: string;
   pagesChecked?: number; usefulPages?: string[];
-  references: Array<ReturnType<typeof extractPublicBenefitReferences>[number] & { provider: string; sourceUrl: string; sourceLabel: string }>;
+  references: Array<ReturnType<typeof extractPublicBenefitReferences>[number] & { provider: string; sourceUrl: string; sourceLabel: string; structured?: true }>;
 };
 type PlanResponse = {
   mode: string; summary: string; agentTrace: string[];
@@ -334,7 +334,7 @@ export default function Home() {
           title: `${reference.store} · referencia pública`,
           day: reference.day,
           discount: reference.discount,
-          kind: "public-reference" as const,
+          kind: reference.structured ? "official-structured" as const : "public-reference" as const,
           sourceUrl: reference.sourceUrl,
           paymentLabels,
         };
@@ -988,9 +988,9 @@ export default function Home() {
             <div className="panel-heading"><div><p className="eyebrow">CERCA TUYO</p><h2>Supermercados y descuentos en el mapa</h2><p>{locationStatus}{location && (discoveringStoreBenefits ? " Buscando descuentos en las secciones oficiales…" : ` ${nearbyStoresWithDeals.length} tienen descuentos compatibles cargados.`)}</p></div><button className="primary-button" type="button" disabled={locating} onClick={requestLocation}>{locating ? "Buscando…" : "Usar mi ubicación"}</button></div>
             <div className="privacy-note">La ubicación se usa solo para esta consulta y no se guarda en tu perfil ni en la memoria.</div>
             {location && storeBenefitDiscoveries.length > 0 && <div className="store-source-summary"><strong>Fuentes de supermercados consultadas</strong>{storeBenefitDiscoveries.map((discovery) => <a href={discovery.sourceUrl} target="_blank" rel="noreferrer" key={discovery.store}>{discovery.store}: {discovery.references.length ? `${discovery.references.length} coincidencias` : discovery.status === "available" ? "sin coincidencias legibles" : "no disponible"}{discovery.pagesChecked ? ` · ${discovery.pagesChecked} secciones` : ""} ↗</a>)}</div>}
-            {location && <><div className="map-legend"><span><i className="deal-dot" /> Promoción verificada</span><span><i className="public-dot" /> Referencia de fuente pública</span><span><i /> Sin descuento cargado</span></div><div className="map-layout"><StoreMap location={location} stores={nearbyStores} dealsByStore={dealsByStore} /><div className="nearby-list">{[...nearbyStores].sort((left, right) => Number(Boolean(dealsByStore[right.id]?.length)) - Number(Boolean(dealsByStore[left.id]?.length)) || left.distanceKm - right.distanceKm).slice(0, 10).map((store) => {
+            {location && <><div className="map-legend"><span><i className="deal-dot" /> Promoción verificada o dato oficial estructurado</span><span><i className="public-dot" /> Referencia de fuente pública</span><span><i /> Sin descuento cargado</span></div><div className="map-layout"><StoreMap location={location} stores={nearbyStores} dealsByStore={dealsByStore} /><div className="nearby-list">{[...nearbyStores].sort((left, right) => Number(Boolean(dealsByStore[right.id]?.length)) - Number(Boolean(dealsByStore[left.id]?.length)) || left.distanceKm - right.distanceKm).slice(0, 10).map((store) => {
               const storeDeals = dealsByStore[store.id] ?? [];
-              return <article className={storeDeals.length ? "has-deal" : ""} key={store.id}><div><strong>{store.name}</strong><small>{store.distanceKm.toFixed(1)} km</small></div>{storeDeals.length ? storeDeals.map((deal) => <div className="store-deal-detail" key={`${deal.kind}-${deal.title}-${deal.day}`}><span className={deal.kind === "verified" ? "store-deal" : "store-public-deal"}>{deal.day}: {deal.discount} posible*</span><small>{deal.paymentLabels.join(" · ")}</small>{deal.kind === "public-reference" && <small>Referencia encontrada en la fuente oficial; revisá las condiciones.</small>}{deal.sourceUrl && <a href={deal.sourceUrl} target="_blank" rel="noreferrer">Ver condiciones</a>}</div>) : <span>Sin beneficio compatible cargado</span>}<a href={`https://www.openstreetmap.org/?mlat=${store.latitude}&mlon=${store.longitude}#map=18/${store.latitude}/${store.longitude}`} target="_blank" rel="noreferrer">Abrir mapa</a></article>;
+              return <article className={storeDeals.length ? "has-deal" : ""} key={store.id}><div><strong>{store.name}</strong><small>{store.distanceKm.toFixed(1)} km</small></div>{storeDeals.length ? storeDeals.map((deal) => <div className="store-deal-detail" key={`${deal.kind}-${deal.title}-${deal.day}`}><span className={deal.kind === "verified" || deal.kind === "official-structured" ? "store-deal" : "store-public-deal"}>{deal.day}: {deal.discount} posible*</span><small>{deal.paymentLabels.join(" · ")}</small>{deal.kind === "public-reference" && <small>Referencia encontrada en la fuente oficial; revisá las condiciones.</small>}{deal.kind === "official-structured" && <small>Dato vigente del catálogo público estructurado de la entidad.</small>}{deal.sourceUrl && <a href={deal.sourceUrl} target="_blank" rel="noreferrer">Ver condiciones</a>}</div>) : <span>Sin beneficio compatible cargado</span>}<a href={`https://www.openstreetmap.org/?mlat=${store.latitude}&mlon=${store.longitude}#map=18/${store.latitude}/${store.longitude}`} target="_blank" rel="noreferrer">Abrir mapa</a></article>;
             })}</div></div></>}
             {location && nearbyStores.length > 0 && <small>*La cercanía no garantiza adhesión a la promoción. Verificá el comercio en las condiciones oficiales.</small>}
           </section>

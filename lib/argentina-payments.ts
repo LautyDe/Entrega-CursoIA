@@ -63,7 +63,7 @@ const directBenefitSources: Record<string, Omit<ProviderBenefitSource, "provider
   "Mercado Pago": { url: "https://www.mercadopago.com.ar/c/promocionesqr", label: "Promociones oficiales Mercado Pago", reviewedAt: "2026-08-17", coverage: "provider", notice: "Mercado Pago publica campañas QR y también ofertas personalizadas dentro de su app; MealBoard no puede asumir que estén habilitadas para todas las cuentas." },
   "Banco Nación": { url: "https://www.bna.com.ar/Personas/DescuentosYPromociones", label: "Beneficios oficiales Banco Nación", reviewedAt: "2026-08-17", coverage: "provider" },
   "Banco Hipotecario": { url: "https://www.hipotecario.com.ar/personas/beneficios/", label: "Beneficios oficiales Banco Hipotecario", reviewedAt: "2026-08-17", coverage: "provider" },
-  "Banco Galicia": { url: "https://www.galicia.ar/personas/beneficios", label: "Beneficios oficiales Galicia", reviewedAt: "2026-08-17", coverage: "provider" },
+  "Banco Galicia": { url: "https://beneficios.galicia.ar/", label: "Beneficios oficiales Galicia", reviewedAt: "2026-08-17", coverage: "provider" },
   "Banco Ciudad": { url: "https://www.bancociudad.com.ar/institucional/micrositio/Beneficios", label: "Beneficios oficiales Banco Ciudad", reviewedAt: "2026-08-17", coverage: "provider" },
   "Banco Provincia": { url: "https://www.bancoprovincia.com.ar/beneficios", label: "Beneficios oficiales Banco Provincia", reviewedAt: "2026-08-17", coverage: "provider" },
   "Cuenta DNI": { url: "https://www.bancoprovincia.com.ar/cuentadni/contenidos/cdniBeneficios", label: "Beneficios oficiales Cuenta DNI", reviewedAt: "2026-08-17", coverage: "provider" },

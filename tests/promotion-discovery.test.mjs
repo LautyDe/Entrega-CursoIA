@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { extractPublicBenefitReferences, extractPublicBenefitSnippets, extractStorePaymentReferences, publicBenefitMatchesStore } from "../lib/public-benefit-extraction.ts";
 import { extractRelevantInternalLinks } from "../lib/official-site-crawler.ts";
+import { parseGaliciaStoreBenefits } from "../lib/provider-store-benefits.ts";
 
 test("extracts supermarket discounts from public HTML without scripts", () => {
   const snippets = extractPublicBenefitSnippets(`
@@ -120,4 +121,31 @@ test("follows only relevant sections inside the same official site", () => {
     "/beneficios/promociones-bancarias",
     "/legales",
   ]);
+});
+
+test("converts Galicia's public catalog into compatible supermarket benefits", () => {
+  const benefits = parseGaliciaStoreBenefits([{
+    promocion: "20% de ahorro", titulo: "Jumbo", subtitulo: "Supermercados",
+    leyendaDiasAplicacion: "Martes y Jueves", fechaHasta: "2026-08-31T00:00:00",
+    mediosDePago: [{ tipoTarjeta: "Credito" }, { tipoTarjeta: "Debito" }],
+  }], [
+    { bank: "Banco Galicia", cardType: "Crédito" },
+    { bank: "Banco Galicia", cardType: "Débito" },
+  ], "2026-08-17");
+
+  assert.equal(benefits.length, 1);
+  assert.equal(benefits[0].store, "Jumbo");
+  assert.equal(benefits[0].discount, "20%");
+  assert.deepEqual(benefits[0].cardTypes, ["Crédito", "Débito"]);
+  assert.equal(benefits[0].structured, true);
+});
+
+test("does not confuse short supermarket names with parts of other brands", () => {
+  const benefits = parseGaliciaStoreBenefits([{
+    promocion: "20% de ahorro", titulo: "Farmacia Nueva", subtitulo: "Salud",
+    leyendaDiasAplicacion: "Todos los días", fechaHasta: "2026-08-31T00:00:00",
+    mediosDePago: [{ tipoTarjeta: "Credito" }],
+  }], [{ bank: "Banco Galicia", cardType: "Crédito" }], "2026-08-17");
+
+  assert.deepEqual(benefits, []);
 });

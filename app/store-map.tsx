@@ -8,7 +8,7 @@ export type StoreDeal = {
   discount: string;
   paymentLabels: string[];
   title: string;
-  kind: "verified" | "public-reference";
+  kind: "verified" | "official-structured" | "public-reference";
   sourceUrl?: string;
 };
 
@@ -30,7 +30,7 @@ export function StoreMap({ location, stores, dealsByStore }: { location: Coordin
       }).bindPopup("Tu ubicación aproximada").addTo(map);
       stores.forEach((store) => {
         const deals = dealsByStore[store.id] ?? [];
-        const hasVerifiedDeal = deals.some((deal) => deal.kind === "verified");
+        const hasVerifiedDeal = deals.some((deal) => deal.kind === "verified" || deal.kind === "official-structured");
         const popup = document.createElement("div");
         const title = document.createElement("strong");
         title.textContent = store.name;

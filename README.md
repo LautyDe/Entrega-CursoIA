@@ -142,6 +142,9 @@ La explicación completa y los diagramas se encuentran en
 - Los precios y calendarios sociales son demostrativos. Las promociones
   identifican fuente y período de vigencia, pero siempre deben confirmarse con
   la entidad antes de pagar porque pueden cambiar o agotarse.
+- La búsqueda del mapa consulta primero las secciones oficiales del supermercado
+  y después complementa los resultados con catálogos públicos estructurados de
+  la entidad seleccionada cuando están disponibles, como Beneficios Galicia.
 - Una promoción solo se aplica cuando coinciden exactamente el banco y el tipo
   de tarjeta; si no hay coincidencia, la compra no muestra un ahorro ficticio.
 - Los errores de escritura cercanos a una entidad conocida generan una

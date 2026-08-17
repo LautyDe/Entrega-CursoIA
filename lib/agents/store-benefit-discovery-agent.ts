@@ -1,11 +1,13 @@
 import type { PaymentMethod } from "../payments";
 import { extractStorePaymentReferences, type PublicBenefitReference } from "../public-benefit-extraction";
 import { crawlOfficialSite, rememberUsefulOfficialPages } from "../official-site-crawler";
+import { discoverStructuredProviderStoreBenefits } from "../provider-store-benefits";
 
 export type StoreBenefitReference = PublicBenefitReference & {
   provider: string;
   sourceUrl: string;
   sourceLabel: string;
+  structured?: true;
 };
 
 export type StoreBenefitDiscovery = {
@@ -51,6 +53,7 @@ export function sourcesForNearbyStores(stores: Array<{ name: string; brand: stri
 }
 
 export async function discoverStoreBenefits(stores: Array<{ name: string; brand: string }>, methods: PaymentMethod[]): Promise<StoreBenefitDiscovery[]> {
+  const supplementaryBenefits = await discoverStructuredProviderStoreBenefits(methods).catch(() => []);
   return Promise.all(sourcesForNearbyStores(stores).map(async (source) => {
     const checkedAt = new Date().toISOString();
     try {
@@ -65,7 +68,9 @@ export async function discoverStoreBenefits(stores: Array<{ name: string; brand:
           ...reference, sourceUrl: page.url, sourceLabel: source.label,
         })),
       }));
-      const references = extracted.flatMap((item) => item.references).filter((reference, index, all) =>
+      const storeReferences = extracted.flatMap((item) => item.references);
+      const providerReferences = supplementaryBenefits.filter((benefit) => benefit.store === source.store);
+      const references = [...storeReferences, ...providerReferences].filter((reference, index, all) =>
         all.findIndex((item) => item.provider === reference.provider && item.day === reference.day && item.discount === reference.discount) === index,
       );
       const usefulPages = extracted.filter((item) => item.references.length).map((item) => item.page.url);
@@ -78,9 +83,14 @@ export async function discoverStoreBenefits(stores: Array<{ name: string; brand:
           : `${pages.length} secciones respondieron, pero no publicaron coincidencias legibles con tus medios.`,
       };
     } catch {
+      const providerReferences = supplementaryBenefits.filter((benefit) => benefit.store === source.store);
       return {
-        store: source.store, sourceUrl: source.url, sourceLabel: source.label, status: "unavailable" as const,
-        checkedAt, references: [], message: "La página oficial del supermercado no respondió a tiempo.",
+        store: source.store, sourceUrl: source.url, sourceLabel: source.label,
+        status: providerReferences.length ? "available" as const : "unavailable" as const,
+        checkedAt, references: providerReferences,
+        message: providerReferences.length
+          ? `El supermercado no respondió, pero se encontraron ${providerReferences.length} coincidencias en el catálogo público de la entidad.`
+          : "La página oficial del supermercado no respondió a tiempo.",
       };
     }
   }));
