@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { extractPublicBenefitReferences, extractPublicBenefitSnippets, extractStorePaymentReferences, publicBenefitMatchesStore } from "../lib/public-benefit-extraction.ts";
+import { extractRelevantInternalLinks } from "../lib/official-site-crawler.ts";
 
 test("extracts supermarket discounts from public HTML without scripts", () => {
   const snippets = extractPublicBenefitSnippets(`
@@ -54,4 +55,19 @@ test("filters an official supermarket page by the selected payment method", () =
   assert.equal(references[0].provider, "Banco Supervielle");
   assert.equal(references[0].day, "Martes");
   assert.equal(references[0].discount, "25%");
+});
+
+test("follows only relevant sections inside the same official site", () => {
+  const links = extractRelevantInternalLinks(`
+    <a href="/beneficios/promociones-bancarias">Promociones bancarias</a>
+    <a href="/legales">Ver legales</a>
+    <a href="/productos/arroz">Arroz</a>
+    <a href="https://example.net/descuentos">Descuento externo</a>
+    <a href="/login?next=promociones">Ingresar a mi cuenta</a>
+  `, "https://supermercado.example.com/inicio");
+
+  assert.deepEqual(links.map((link) => new URL(link.url).pathname), [
+    "/beneficios/promociones-bancarias",
+    "/legales",
+  ]);
 });

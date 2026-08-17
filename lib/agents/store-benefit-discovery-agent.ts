@@ -1,5 +1,6 @@
 import type { PaymentMethod } from "../payments";
 import { extractStorePaymentReferences, type PublicBenefitReference } from "../public-benefit-extraction";
+import { crawlOfficialSite, rememberUsefulOfficialPages } from "../official-site-crawler";
 
 export type StoreBenefitReference = PublicBenefitReference & {
   provider: string;
@@ -15,6 +16,8 @@ export type StoreBenefitDiscovery = {
   checkedAt: string;
   references: StoreBenefitReference[];
   message: string;
+  pagesChecked?: number;
+  usefulPages?: string[];
 };
 
 type StoreSource = { store: string; aliases: string[]; url: string; label: string };
@@ -29,8 +32,6 @@ export const officialStoreBenefitSources: StoreSource[] = [
   { store: "ChangoMás", aliases: ["changomás", "changomas", "chango más", "mas online"], url: "https://www.masonline.com.ar/promociones", label: "Promociones oficiales ChangoMás" },
 ];
 
-const cache = new Map<string, { expiresAt: number; html: string }>();
-
 function normalize(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
@@ -42,36 +43,28 @@ export function sourcesForNearbyStores(stores: Array<{ name: string; brand: stri
   }));
 }
 
-async function fetchSource(source: StoreSource) {
-  const cached = cache.get(source.url);
-  if (cached && cached.expiresAt > Date.now()) return cached.html;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 6000);
-  try {
-    const response = await fetch(source.url, { headers: { Accept: "text/html" }, redirect: "follow", signal: controller.signal });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const html = await response.text();
-    cache.set(source.url, { expiresAt: Date.now() + 3 * 60 * 60 * 1000, html });
-    return html;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 export async function discoverStoreBenefits(stores: Array<{ name: string; brand: string }>, methods: PaymentMethod[]): Promise<StoreBenefitDiscovery[]> {
   return Promise.all(sourcesForNearbyStores(stores).map(async (source) => {
     const checkedAt = new Date().toISOString();
     try {
-      const html = await fetchSource(source);
-      const references = extractStorePaymentReferences(html, source.store, methods).map((reference) => ({
-        ...reference, sourceUrl: source.url, sourceLabel: source.label,
+      const pages = await crawlOfficialSite(source.url);
+      const extracted = pages.map((page) => ({
+        page,
+        references: extractStorePaymentReferences(page.body, source.store, methods).map((reference) => ({
+          ...reference, sourceUrl: page.url, sourceLabel: source.label,
+        })),
       }));
+      const references = extracted.flatMap((item) => item.references).filter((reference, index, all) =>
+        all.findIndex((item) => item.provider === reference.provider && item.day === reference.day && item.discount === reference.discount) === index,
+      );
+      const usefulPages = extracted.filter((item) => item.references.length).map((item) => item.page.url);
+      rememberUsefulOfficialPages(source.url, usefulPages);
       return {
         store: source.store, sourceUrl: source.url, sourceLabel: source.label, status: "available" as const,
-        checkedAt, references,
+        checkedAt, references, pagesChecked: pages.length, usefulPages,
         message: references.length
-          ? `${references.length} coincidencias públicas con tus medios encontradas.`
-          : "La página respondió, pero no publicó coincidencias legibles con tus medios.",
+          ? `${references.length} coincidencias con tus medios encontradas en ${pages.length} secciones oficiales.`
+          : `${pages.length} secciones respondieron, pero no publicaron coincidencias legibles con tus medios.`,
       };
     } catch {
       return {

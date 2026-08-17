@@ -55,6 +55,7 @@ flowchart LR
 | Promociones verificadas | Datos externos curados | Conserva vigencia, fecha de verificación y fuente oficial. |
 | OpenStreetMap / Overpass | Datos abiertos externos | Busca supermercados próximos después del permiso de ubicación. |
 | Agente complementario de comercios | Consulta determinística bajo demanda | Consulta solo las páginas oficiales de cadenas detectadas cerca del usuario y filtra por los medios elegidos. |
+| Navegador de fuentes oficiales | Infraestructura acotada | Recorre enlaces internos relevantes, impide salir del dominio, aplica límites y recuerda temporalmente rutas útiles. |
 | `localStorage` | Persistencia local | Conserva perfil, memoria, inventario, compras y evaluaciones. |
 
 ## 2. Flujo de agentes
@@ -159,6 +160,12 @@ sequenceDiagram
 - El ciclo principal conserva nueve agentes. La búsqueda desde supermercados
   es un agente complementario disparado después de obtener la ubicación, porque
   los comercios cercanos no forman parte de la solicitud de planificación.
+- La consulta web permite hasta dos niveles y seis páginas por sitio, con un
+  presupuesto total de doce segundos. Solo sigue HTTPS dentro del mismo dominio
+  oficial y prioriza secciones de promociones, beneficios, pagos y legales.
+- El aprendizaje de navegación consiste en aumentar la prioridad de las URLs
+  que entregaron coincidencias. Se conserva en memoria de proceso y no contiene
+  información personal del usuario.
 - Ningún calendario propuesto modifica el estado persistente sin confirmación.
 - Las promociones solo se aplican cuando coinciden exactamente banco y tipo de
   tarjeta, y su período de vigencia incluye la fecha de consulta.

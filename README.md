@@ -35,6 +35,13 @@ El agente de beneficios realiza solicitudes web acotadas, con lista de fuentes
 permitidas, tiempo límite y caché; no inicia sesión ni accede a información
 personal del cliente.
 
+Los agentes de beneficios navegan hasta dos niveles dentro del mismo dominio
+oficial y priorizan enlaces relacionados con promociones, beneficios, medios de
+pago y legales. Revisan como máximo seis páginas durante doce segundos por
+sitio. Las secciones que producen resultados se recuerdan en la memoria
+temporal del proceso para consultarlas primero la próxima vez; ese aprendizaje
+se reinicia al volver a desplegar o iniciar el servidor.
+
 ## Tecnologías
 
 - React 19

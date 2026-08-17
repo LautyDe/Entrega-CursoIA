@@ -13,6 +13,8 @@ inventario y los descuentos, reducir desperdicios y controlar el presupuesto.
 - `lib/agents/store-benefit-discovery-agent.ts`: agente complementario que
   consulta fuentes oficiales de las cadenas cercanas después de obtener la
   ubicación; no forma parte del ciclo de planificación.
+- `lib/official-site-crawler.ts`: navegación limitada a enlaces relevantes del
+  mismo dominio oficial y memoria temporal de rutas útiles.
 - `lib/agents/types.ts`: contratos compartidos.
 - `lib/agents/catalog.ts`: recetas y precios de demostración.
 - `tests/rendered-html.test.mjs`: integración del frontend y del ciclo agéntico.

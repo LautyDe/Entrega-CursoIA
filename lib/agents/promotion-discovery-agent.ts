@@ -1,6 +1,7 @@
 import { benefitSourceForProvider, canonicalPaymentProvider, compatiblePromotions } from "../argentina-payments";
 import type { PaymentMethod } from "../payments";
 import { extractPublicBenefitSnippets } from "../public-benefit-extraction";
+import { crawlOfficialSite, rememberUsefulOfficialPages } from "../official-site-crawler";
 import { addRun, type WorkingState } from "./types";
 
 export type PublicBenefitDiscovery = {
@@ -11,24 +12,11 @@ export type PublicBenefitDiscovery = {
   checkedAt: string;
   publicBenefits: string[];
   message: string;
+  pagesChecked?: number;
+  usefulPages?: string[];
 };
 
 const cache = new Map<string, { expiresAt: number; value: PublicBenefitDiscovery }>();
-async function fetchOfficialSource(url: string) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 6000);
-  try {
-    const response = await fetch(url, {
-      headers: { Accept: "text/html", "User-Agent": "MealBoard/1.0 public-benefits" },
-      redirect: "follow",
-      signal: controller.signal,
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return await response.text();
-  } finally {
-    clearTimeout(timeout);
-  }
-}
 
 export async function discoverPublicBenefits(methods: PaymentMethod[]): Promise<PublicBenefitDiscovery[]> {
   const providers = [...new Set(methods.map((method) => canonicalPaymentProvider(method.bank) ?? method.bank))];
@@ -42,14 +30,17 @@ export async function discoverPublicBenefits(methods: PaymentMethod[]): Promise<
     const cached = cache.get(provider);
     if (cached && cached.expiresAt > Date.now()) return cached.value;
     try {
-      const html = await fetchOfficialSource(source.url);
-      const publicBenefits = extractPublicBenefitSnippets(html);
+      const pages = await crawlOfficialSite(source.url);
+      const extracted = pages.map((page) => ({ page, snippets: extractPublicBenefitSnippets(page.body) }));
+      const publicBenefits = [...new Set(extracted.flatMap((item) => item.snippets))].slice(0, 20);
+      const usefulPages = extracted.filter((item) => item.snippets.length).map((item) => item.page.url);
+      rememberUsefulOfficialPages(source.url, usefulPages);
       const value: PublicBenefitDiscovery = {
         provider, sourceUrl: source.url, sourceLabel: source.label, status: "available",
-        checkedAt: now.toISOString(), publicBenefits,
+        checkedAt: now.toISOString(), publicBenefits, pagesChecked: pages.length, usefulPages,
         message: publicBenefits.length
-          ? `${publicBenefits.length} referencias públicas de supermercados encontradas.`
-          : "La fuente respondió, pero no publicó condiciones de supermercado legibles sin iniciar sesión.",
+          ? `${publicBenefits.length} referencias públicas encontradas en ${pages.length} secciones oficiales.`
+          : `${pages.length} secciones respondieron, pero no publicaron condiciones de supermercado legibles sin iniciar sesión.`,
       };
       cache.set(provider, { expiresAt: Date.now() + 6 * 60 * 60 * 1000, value });
       return value;
