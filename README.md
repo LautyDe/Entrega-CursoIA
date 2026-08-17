@@ -136,6 +136,9 @@ La explicación completa y los diagramas se encuentran en
   `mealboard-state`.
 - El medio de pago se guarda mediante banco y tipo de tarjeta separados. Los
   estados anteriores que usaban un único texto se migran al cargarse.
+- El selector de entidades permite buscar bancos, billeteras y fintech por
+  nombre actual, abreviatura o denominaciones históricas, con navegación por
+  teclado y confirmación explícita para opciones desconocidas.
 - Los precios y calendarios sociales son demostrativos. Las promociones
   identifican fuente y período de vigencia, pero siempre deben confirmarse con
   la entidad antes de pagar porque pueden cambiar o agotarse.
