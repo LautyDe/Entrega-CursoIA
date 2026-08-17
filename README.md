@@ -26,7 +26,8 @@ para comprar.
   OpenStreetMap, con marcadores destacados cuando existe una promoción
   compatible con los medios seleccionados.
 - Comunidad de calendarios para guardar, seguir, publicar y adaptar.
-- Memoria persistente en `localStorage`, editable por el usuario.
+- Memoria persistente por usuario en Cloudflare D1, con copia local de respaldo
+  editable por el usuario.
 - Confirmación humana antes de aplicar una planificación.
 
 La versión actual no usa una API paga ni un LLM. Los agentes son módulos
@@ -132,8 +133,14 @@ La explicación completa y los diagramas se encuentran en
 
 ## Datos y limitaciones
 
-- El perfil y la memoria se guardan en el navegador bajo
-  `mealboard-state`.
+- El inicio de sesión usa la identidad segura de ChatGPT; MealBoard no recibe ni
+  almacena contraseñas. Calendario, inventario, memoria, compras y preferencias
+  quedan asociados al usuario autenticado.
+- En el primer acceso se importa el estado anterior guardado en `localStorage`
+  para conservar los datos del MVP anónimo.
+
+- El navegador conserva una copia de respaldo bajo `mealboard-state`; la copia
+  asociada al usuario en D1 es la persistencia principal después del acceso.
 - El medio de pago se guarda mediante banco y tipo de tarjeta separados. Los
   estados anteriores que usaban un único texto se migran al cargarse.
 - El selector muestra una lista consistente en escritorio y celular, busca

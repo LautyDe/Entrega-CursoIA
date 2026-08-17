@@ -56,6 +56,7 @@ type AgentRun = {
   observation: string; decision: string; output: string;
 };
 type AgentDefinition = { id: string; name: string; role: string };
+type AuthenticatedUser = { displayName: string; email: string };
 type PublicBenefitDiscovery = {
   provider: string; sourceUrl?: string; sourceLabel?: string;
   status: "available" | "unavailable" | "unsupported";
@@ -194,6 +195,27 @@ function initials(name: string) {
   return name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "MB";
 }
 
+function restoredAppState(value: string | null): AppState | null {
+  const restored = parseStoredState(value) as Partial<AppState> | null;
+  if (!restored) return null;
+  return {
+    ...initialState, ...restored,
+    profile: {
+      ...defaultProfile, ...(restored.profile ?? {}),
+      ...migrateLegacyPayment((restored.profile ?? {}) as unknown as Record<string, unknown>, {
+        bank: defaultProfile.paymentBank, cardType: defaultProfile.paymentCardType,
+      }),
+    },
+    community: restored.community ?? initialCommunity,
+    memory: restored.memory ?? initialState.memory,
+    purchases: restored.purchases ?? initialState.purchases,
+    reviews: restored.reviews ?? initialState.reviews,
+    week: (restored.week ?? initialWeek).map((day) => ({ ...initialWeek.find((base) => base.id === day.id), ...day } as Meal)),
+    inventory: (restored.inventory ?? initialInventory).map((item) => ({ purchaseDate: "", expiryDate: "", ...item })),
+    shopping: (restored.shopping ?? initialShopping).map((item, index) => ({ id: Date.now() + index, ...item })),
+  };
+}
+
 function MealCard({ slot, value, meta, onOpen }: {
   slot: { id: MealSlot; label: string; icon: string }; value: string; meta: string; onOpen: () => void;
 }) {
@@ -209,6 +231,8 @@ function MealCard({ slot, value, meta, onOpen }: {
 
 export default function Home() {
   const [state, setState] = useState<AppState>(initialState);
+  const [authStatus, setAuthStatus] = useState<"loading" | "authenticated" | "anonymous">("loading");
+  const [authenticatedUser, setAuthenticatedUser] = useState<AuthenticatedUser | null>(null);
   const [activeTab, setActiveTab] = useState("calendar");
   const [selectedDay, setSelectedDay] = useState("lun");
   const [modal, setModal] = useState<ModalName | null>(null);
@@ -244,30 +268,46 @@ export default function Home() {
   const scanInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const restored = parseStoredState(localStorage.getItem(MEALBOARD_STORAGE_KEY)) as Partial<AppState> | null;
+    const restored = restoredAppState(localStorage.getItem(MEALBOARD_STORAGE_KEY));
     if (restored) {
-      const migrated: AppState = {
-        ...initialState,
-        ...restored,
-        profile: {
-          ...defaultProfile,
-          ...(restored.profile ?? {}),
-          ...migrateLegacyPayment(
-            (restored.profile ?? {}) as unknown as Record<string, unknown>,
-            { bank: defaultProfile.paymentBank, cardType: defaultProfile.paymentCardType },
-          ),
-        },
-        community: restored.community ?? initialCommunity,
-        memory: restored.memory ?? initialState.memory,
-        purchases: restored.purchases ?? initialState.purchases,
-        reviews: restored.reviews ?? initialState.reviews,
-        week: (restored.week ?? initialWeek).map((day) => ({ ...initialWeek.find((base) => base.id === day.id), ...day } as Meal)),
-        inventory: (restored.inventory ?? initialInventory).map((item) => ({ purchaseDate: "", expiryDate: "", ...item })),
-        shopping: (restored.shopping ?? initialShopping).map((item, index) => ({ id: Date.now() + index, ...item })),
-      };
-      const timer = window.setTimeout(() => setState(migrated), 0);
+      const timer = window.setTimeout(() => setState(restored), 0);
       return () => window.clearTimeout(timer);
     }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadAccount = async () => {
+      try {
+        const accountResponse = await fetch("/api/me", { cache: "no-store" });
+        if (!accountResponse.ok) {
+          if (!cancelled) setAuthStatus("anonymous");
+          return;
+        }
+        const account = await accountResponse.json() as { user: AuthenticatedUser };
+        const stateResponse = await fetch("/api/user-state", { cache: "no-store" });
+        const remote = stateResponse.ok ? await stateResponse.json() as { state: AppState | null } : { state: null };
+        const local = restoredAppState(localStorage.getItem(MEALBOARD_STORAGE_KEY));
+        if (cancelled) return;
+        setAuthenticatedUser(account.user);
+        setAuthStatus("authenticated");
+        if (remote.state) {
+          const restoredRemote = restoredAppState(serializeStoredState(remote.state));
+          if (restoredRemote) {
+            setState(restoredRemote);
+            localStorage.setItem(MEALBOARD_STORAGE_KEY, serializeStoredState(restoredRemote));
+          }
+        } else if (local) {
+          await fetch("/api/user-state", {
+            method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state: local }),
+          });
+        }
+      } catch {
+        if (!cancelled) setAuthStatus("anonymous");
+      }
+    };
+    void loadAccount();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -280,6 +320,11 @@ export default function Home() {
   const persist = (next: AppState) => {
     setState(next);
     localStorage.setItem(MEALBOARD_STORAGE_KEY, serializeStoredState(next));
+    if (authStatus === "authenticated") {
+      void fetch("/api/user-state", {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state: next }),
+      }).catch(() => undefined);
+    }
   };
 
   const notify = (message: string) => {
@@ -767,6 +812,16 @@ export default function Home() {
     profile: ["Mi perfil", "Preferencias, planificación y control de la memoria."],
   };
 
+  if (authStatus === "anonymous") {
+    return <main className="auth-screen"><section className="auth-card" aria-labelledby="auth-title">
+      <span className="brand-mark">M</span><p className="eyebrow">TU MEALBOARD PERSONAL</p>
+      <h1 id="auth-title">Tus comidas, compras y ahorros en un solo lugar</h1>
+      <p>Iniciá sesión para mantener tu calendario, inventario, memoria y medios de pago separados y disponibles en tus dispositivos.</p>
+      <a className="primary-button auth-button" href="/signin-with-chatgpt?return_to=%2F">Ingresar con ChatGPT</a>
+      <small>MealBoard no recibe tu contraseña. La sesión es administrada por ChatGPT.</small>
+    </section></main>;
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar" aria-label="Navegación principal">
@@ -795,6 +850,7 @@ export default function Home() {
             <p className="subtitle">{titleByTab[activeTab][1]}</p>
           </div>
           <div className="top-actions">
+            {authenticatedUser && <div className="account-pill"><span>{initials(authenticatedUser.displayName)}</span><div><strong>{authenticatedUser.displayName}</strong><small>{authenticatedUser.email}</small></div><a href="/signout-with-chatgpt?return_to=%2F">Salir</a></div>}
             <button className="icon-button" type="button" onClick={() => setModal("notice")} aria-label="Ver notificaciones">♢<span>{notifications.length}</span></button>
             <button className="avatar" type="button" onClick={() => setActiveTab("profile")} aria-label="Abrir perfil">{initials(state.profile.name)}</button>
           </div>

@@ -193,3 +193,14 @@ sequenceDiagram
 | Compatibilidad de pagos | `lib/payments.ts` |
 | Lectura segura de persistencia | `lib/persistence.ts` |
 | Pruebas integrales | `tests/*.test.mjs` |
+# Identidad y persistencia por usuario
+
+MealBoard utiliza el inicio de sesión administrado por ChatGPT. El servidor toma
+la identidad desde encabezados autenticados de la plataforma y nunca confía en
+un identificador enviado por el navegador. Las rutas `/api/me` y
+`/api/user-state` validan esa identidad antes de leer o guardar información.
+
+Cloudflare D1 almacena un registro de usuario y un único estado de MealBoard por
+identidad. `localStorage` queda como respaldo del dispositivo y como fuente de
+migración para el primer inicio de sesión; después, D1 es la copia persistente
+que permite continuar en otros dispositivos.

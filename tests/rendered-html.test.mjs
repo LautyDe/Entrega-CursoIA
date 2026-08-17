@@ -40,6 +40,14 @@ test("renders development preview metadata", async () => {
   assert.match(await response.text(), developmentPreviewMeta);
 });
 
+test("rejects user APIs without an authenticated identity", async () => {
+  const worker = await loadWorker();
+  for (const path of ["/api/me", "/api/user-state"]) {
+    const response = await worker.fetch(new Request(`http://localhost${path}`), env, ctx);
+    assert.equal(response.status, 401);
+  }
+});
+
 test("coordinates nine agents and respects selected meal slots", async () => {
   const worker = await loadWorker();
   const response = await worker.fetch(

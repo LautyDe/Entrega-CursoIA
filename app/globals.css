@@ -2691,3 +2691,35 @@ textarea {
     grid-template-columns: 1fr !important;
   }
 }
+.auth-screen {
+  align-items: center;
+  background: radial-gradient(circle at top left, var(--burgundy-soft), var(--cream) 48%);
+  display: grid;
+  min-height: 100vh;
+  padding: 24px;
+  place-items: center;
+}
+
+.auth-card {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  box-shadow: 0 24px 70px rgba(55, 38, 31, .14);
+  display: grid;
+  gap: 18px;
+  max-width: 560px;
+  padding: clamp(28px, 6vw, 52px);
+  text-align: center;
+}
+
+.auth-card .brand-mark { margin: 0 auto; }
+.auth-card h1, .auth-card p { margin: 0; }
+.auth-card p, .auth-card small { color: var(--muted); line-height: 1.6; }
+.auth-button { display: block; text-decoration: none; }
+
+.account-pill { align-items: center; background: var(--white); border: 1px solid var(--line); border-radius: 14px; display: flex; gap: 9px; padding: 6px 9px; }
+.account-pill > span { align-items: center; background: var(--burgundy); border-radius: 10px; color: white; display: flex; font-size: 11px; font-weight: 900; height: 30px; justify-content: center; width: 30px; }
+.account-pill > div { display: grid; }
+.account-pill strong { font-size: 12px; }
+.account-pill small { color: var(--muted); font-size: 10px; }
+.account-pill a { color: var(--burgundy); font-size: 11px; font-weight: 800; text-decoration: none; }
