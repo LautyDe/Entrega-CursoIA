@@ -126,6 +126,7 @@ const promotions = verifiedPromotions.flatMap((promotion) => promotion.banks.fla
     verifiedAt: promotion.verifiedAt,
     validThrough: promotion.validThrough,
     method: promotion.method,
+    notes: promotion.notes,
   })),
 ));
 
@@ -868,7 +869,7 @@ export default function Home() {
               <p>{bestPromotion ? `Con ${bestPromotion.cardType.toLowerCase()} en ${bestPromotion.store}. Tope: ${bestPromotion.cap}.` : `Revisamos todos tus medios guardados sin aplicar beneficios vencidos o incompatibles.`}</p>
               <div className="promo-saving"><span>Ahorro estimado</span><strong>{money(estimatedPromoSaving)}</strong></div>
               {shoppingTotal > state.profile.budget && <div className="budget-warning">La lista supera tu presupuesto por {money(shoppingTotal - state.profile.budget)}. Podés quitar productos o generar un plan más económico.</div>}
-              {bestPromotion && <><small>Verificada: {bestPromotion.verifiedAt} · Vigente hasta: {bestPromotion.validThrough}</small><a className="promo-source" href={bestPromotion.sourceUrl} target="_blank" rel="noreferrer">Ver condiciones oficiales ↗</a></>}
+              {bestPromotion && <><small>Verificada: {bestPromotion.verifiedAt} · {bestPromotion.validThrough ? `Vigente hasta: ${bestPromotion.validThrough}` : "La fuente no publica fecha final; requiere confirmación"}</small>{bestPromotion.notes && <small>{bestPromotion.notes}</small>}<a className="promo-source" href={bestPromotion.sourceUrl} target="_blank" rel="noreferrer">Ver condiciones oficiales ↗</a></>}
               <small>Los beneficios pueden cambiar o agotarse. Confirmalos con el banco antes de pagar.</small>
             </aside>
           </section>

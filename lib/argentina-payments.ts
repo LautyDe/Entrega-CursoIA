@@ -58,13 +58,58 @@ export type VerifiedPromotion = {
   cap: string;
   method: string;
   validFrom: string;
-  validThrough: string;
+  validThrough?: string;
   verifiedAt: string;
   sourceUrl: string;
   notes: string;
 };
 
 export const verifiedPromotions: VerifiedPromotion[] = [
+  {
+    id: "santander-sueldo-changomas-2026",
+    title: "ChangoMás con Santander Cuenta Sueldo",
+    banks: ["Banco Santander"], cardTypes: ["Débito", "Crédito"], storeBrands: ["ChangoMás", "Changomas", "Walmart"],
+    day: "Lunes", discount: "30%", cap: "$10.000 por semana", method: "MODO con tarjeta Santander Visa",
+    validFrom: "2026-08-17", verifiedAt: "2026-08-17",
+    sourceUrl: "https://www.santander.com.ar/personas/cuenta-sueldo",
+    notes: "Exclusivo Plan Sueldo. Confirmar vigencia y comercios adheridos antes de pagar.",
+  },
+  {
+    id: "santander-sueldo-jumbo-disco-vea-2026",
+    title: "Jumbo, Disco y Vea con Santander Cuenta Sueldo",
+    banks: ["Banco Santander"], cardTypes: ["Débito", "Crédito"], storeBrands: ["Jumbo", "Disco", "Vea"],
+    day: "Miércoles", discount: "30%", cap: "$20.000 por mes", method: "Tarjeta Santander Visa",
+    validFrom: "2026-08-17", verifiedAt: "2026-08-17",
+    sourceUrl: "https://www.santander.com.ar/personas/cuenta-sueldo",
+    notes: "Exclusivo Plan Sueldo. Confirmar vigencia y comercios adheridos antes de pagar.",
+  },
+  {
+    id: "santander-sueldo-anonima-2026",
+    title: "La Anónima con Santander Cuenta Sueldo",
+    banks: ["Banco Santander"], cardTypes: ["Débito", "Crédito"], storeBrands: ["La Anónima", "La Anonima"],
+    day: "Miércoles", discount: "25%", cap: "$20.000 por mes", method: "Tarjeta Santander Visa",
+    validFrom: "2026-08-17", verifiedAt: "2026-08-17",
+    sourceUrl: "https://www.santander.com.ar/personas/cuenta-sueldo",
+    notes: "Exclusivo Plan Sueldo. Confirmar vigencia y comercios adheridos antes de pagar.",
+  },
+  {
+    id: "santander-sueldo-carrefour-2026",
+    title: "Carrefour con Santander Cuenta Sueldo",
+    banks: ["Banco Santander"], cardTypes: ["Débito", "Crédito"], storeBrands: ["Carrefour"],
+    day: "Viernes", discount: "25%", cap: "$20.000 por mes", method: "MODO con tarjeta Santander Visa",
+    validFrom: "2026-08-17", verifiedAt: "2026-08-17",
+    sourceUrl: "https://www.santander.com.ar/personas/cuenta-sueldo",
+    notes: "Exclusivo Plan Sueldo. Confirmar vigencia y comercios adheridos antes de pagar.",
+  },
+  {
+    id: "santander-sueldo-dia-2026",
+    title: "Día con Santander Cuenta Sueldo",
+    banks: ["Banco Santander"], cardTypes: ["Débito", "Crédito"], storeBrands: ["Día", "Dia"],
+    day: "Sábado", discount: "25%", cap: "$20.000 por mes", method: "Tarjeta Santander Visa",
+    validFrom: "2026-08-17", verifiedAt: "2026-08-17",
+    sourceUrl: "https://www.santander.com.ar/personas/cuenta-sueldo",
+    notes: "Exclusivo Plan Sueldo. Confirmar vigencia y comercios adheridos antes de pagar.",
+  },
   {
     id: "bna-super-mayoristas-2026",
     title: "Supermercados y mayoristas con Banco Nación",
@@ -158,7 +203,7 @@ export function validatePaymentProvider(value: string) {
 export function compatiblePromotions(methods: PaymentMethod[], today = new Date().toISOString().slice(0, 10)) {
   return verifiedPromotions.filter((promotion) =>
     promotion.validFrom <= today
-    && promotion.validThrough >= today
+    && (!promotion.validThrough || promotion.validThrough >= today)
     && methods.some((method) => promotion.banks.includes(method.bank) && promotion.cardTypes.includes(method.cardType)),
   );
 }

@@ -125,6 +125,9 @@ La explicación completa y los diagramas se encuentran en
 - Cada medio seleccionado muestra su nivel de cobertura y un acceso a la
   fuente oficial. No encontrar una promoción estructurada no se presenta como
   prueba de que el banco carezca de beneficios.
+- Santander Cuenta Sueldo incluye oportunidades verificadas para ChangoMás,
+  Jumbo, Disco, Vea, La Anónima, Carrefour y Día. La app muestra la condición
+  de Plan Sueldo y exige confirmar vigencia y adhesión antes de comprar.
 - La ubicación requiere permiso explícito, se utiliza para una consulta puntual
   de comercios cercanos y no se persiste en el perfil ni en la memoria.
 - No se deben presentar las recomendaciones nutricionales como asesoramiento

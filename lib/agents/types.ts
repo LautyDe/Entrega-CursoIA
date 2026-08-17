@@ -29,6 +29,7 @@ export type PromotionInput = {
   verifiedAt?: string;
   validThrough?: string;
   method?: string;
+  notes?: string;
   discount: string;
   cap: string;
 };

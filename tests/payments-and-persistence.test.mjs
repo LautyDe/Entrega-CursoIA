@@ -94,3 +94,14 @@ test("normaliza alias históricos y ofrece una fuente oficial", () => {
   assert.equal(benefitSourceForProvider("Mercado Pago")?.coverage, "provider");
   assert.equal(benefitSourceForProvider("Banco Inventado"), undefined);
 });
+
+test("muestra promociones de supermercado para Santander Río", () => {
+  const bank = canonicalPaymentProvider("Santander Río");
+  const promotions = compatiblePromotions([{ bank, cardType: "Crédito" }], "2026-08-17");
+
+  assert.equal(bank, "Banco Santander");
+  assert.deepEqual(promotions.map((promotion) => promotion.day), [
+    "Lunes", "Miércoles", "Miércoles", "Viernes", "Sábado",
+  ]);
+  assert.ok(promotions.every((promotion) => promotion.notes.includes("Plan Sueldo")));
+});
