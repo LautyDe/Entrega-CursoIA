@@ -7,7 +7,7 @@ import {
   selectBestPromotion,
 } from "../lib/payments.ts";
 import { parseStoredState, serializeStoredState } from "../lib/persistence.ts";
-import { benefitSourceForProvider, canonicalPaymentProvider, compatiblePromotions, paymentMethodsForPromotion, promotionMatchesStore, validatePaymentProvider } from "../lib/argentina-payments.ts";
+import { benefitSourceForProvider, canonicalPaymentProvider, compatiblePromotions, paymentMethodsForPromotion, promotionMatchesStore, searchPaymentProviders, validatePaymentProvider } from "../lib/argentina-payments.ts";
 
 const promotions = [
   { day: "Miércoles", store: "Carrefour", bank: "Banco Ciudad", cardType: "Débito", discount: "20%", cap: "$8.000" },
@@ -93,6 +93,14 @@ test("normaliza alias históricos y ofrece una fuente oficial", () => {
   assert.equal(benefitSourceForProvider("Santander Río")?.url, "https://www.santander.com.ar/personas/beneficios");
   assert.equal(benefitSourceForProvider("Mercado Pago")?.coverage, "provider");
   assert.equal(benefitSourceForProvider("Banco Inventado"), undefined);
+});
+
+test("busca entidades sin mezclar el banco con el tipo de medio", () => {
+  assert.equal(searchPaymentProviders("Santander Río crédito y débito")[0], "Banco Santander");
+  assert.equal(searchPaymentProviders("Mercado Pago dinero en cuenta")[0], "Mercado Pago");
+  assert.equal(searchPaymentProviders("BNA")[0], "Banco Nación");
+  assert.equal(searchPaymentProviders("uala")[0], "Ualá");
+  assert.deepEqual(searchPaymentProviders("entidad inexistente"), []);
 });
 
 test("muestra promociones de supermercado para Santander Río", () => {

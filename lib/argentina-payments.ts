@@ -27,6 +27,28 @@ const providerAliases: Record<string, string[]> = {
   "Cuenta DNI": ["CuentaDNI"],
 };
 
+const paymentQualifierPattern = /\b(?:tarjetas?|credito|debito|prepaga|dinero|cuenta|visa|mastercard|master|card|american|express|amex|cabal|con|de|del|y)\b/g;
+
+export function searchPaymentProviders(query: string): string[] {
+  const normalizedQuery = normalizeProvider(query);
+  const relevantQuery = normalizedQuery.replace(paymentQualifierPattern, " ").replace(/\s+/g, " ").trim();
+  if (!relevantQuery) return argentinaPaymentProviders;
+
+  const queryTokens = relevantQuery.split(" ");
+  return argentinaPaymentProviders
+    .map((provider) => {
+      const names = [provider, ...(providerAliases[provider] ?? [])].map(normalizeProvider);
+      const exact = names.some((name) => name === relevantQuery);
+      const startsWith = names.some((name) => name.startsWith(relevantQuery));
+      const contains = names.some((name) => name.includes(relevantQuery) || relevantQuery.includes(name));
+      const tokensMatch = names.some((name) => queryTokens.every((token) => name.includes(token)));
+      return { provider, score: exact ? 4 : startsWith ? 3 : contains ? 2 : tokensMatch ? 1 : 0 };
+    })
+    .filter(({ score }) => score > 0)
+    .sort((left, right) => right.score - left.score || left.provider.localeCompare(right.provider, "es-AR"))
+    .map(({ provider }) => provider);
+}
+
 export type ProviderBenefitSource = {
   provider: string;
   url: string;

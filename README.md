@@ -136,9 +136,9 @@ La explicación completa y los diagramas se encuentran en
   `mealboard-state`.
 - El medio de pago se guarda mediante banco y tipo de tarjeta separados. Los
   estados anteriores que usaban un único texto se migran al cargarse.
-- El selector conserva la búsqueda nativa del navegador sobre la lista completa
-  de bancos, billeteras y fintech, y valida abreviaturas o denominaciones
-  históricas antes de confirmar opciones desconocidas.
+- El selector muestra una lista consistente en escritorio y celular, busca
+  bancos, billeteras y fintech por nombre o alias, e ignora palabras del tipo
+  de medio antes de confirmar opciones desconocidas.
 - Los precios y calendarios sociales son demostrativos. Las promociones
   identifican fuente y período de vigencia, pero siempre deben confirmarse con
   la entidad antes de pagar porque pueden cambiar o agotarse.
