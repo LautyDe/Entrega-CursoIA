@@ -148,6 +148,16 @@ export function paymentKey(payment: PaymentMethod) {
   return `${payment.bank}::${payment.cardType}`;
 }
 
+export function promotionMatchesStore(promotion: VerifiedPromotion, storeName: string, storeBrand = storeName) {
+  if (!promotion.storeBrands.length) return true;
+  const searchableStore = normalizeProvider(`${storeName} ${storeBrand}`);
+  return promotion.storeBrands.some((brand) => searchableStore.includes(normalizeProvider(brand)));
+}
+
+export function paymentMethodsForPromotion(promotion: VerifiedPromotion, methods: PaymentMethod[]) {
+  return methods.filter((method) => promotion.banks.includes(method.bank) && promotion.cardTypes.includes(method.cardType));
+}
+
 function normalizeProvider(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }

@@ -20,7 +20,8 @@ para comprar.
 - Consulta bajo demanda de las páginas públicas oficiales correspondientes
   únicamente a los medios de pago seleccionados.
 - Mapa opcional de supermercados cercanos mediante geolocalización y datos de
-  OpenStreetMap.
+  OpenStreetMap, con marcadores destacados cuando existe una promoción
+  compatible con los medios seleccionados.
 - Comunidad de calendarios para guardar, seguir, publicar y adaptar.
 - Memoria persistente en `localStorage`, editable por el usuario.
 - Confirmación humana antes de aplicar una planificación.
@@ -138,6 +139,9 @@ La explicación completa y los diagramas se encuentran en
   de Plan Sueldo y exige confirmar vigencia y adhesión antes de comprar.
 - La ubicación requiere permiso explícito, se utiliza para una consulta puntual
   de comercios cercanos y no se persiste en el perfil ni en la memoria.
+- El cruce del mapa usa la marca informada por OpenStreetMap. Un marcador con
+  descuento indica compatibilidad potencial; la adhesión de esa sucursal debe
+  confirmarse en las condiciones oficiales.
 - No se deben presentar las recomendaciones nutricionales como asesoramiento
   médico.
 - Los alimentos vencidos y las alergias deben seguir teniendo prioridad sobre

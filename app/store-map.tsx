@@ -3,7 +3,14 @@
 import { useEffect, useRef } from "react";
 import type { Coordinates, NearbyStore } from "../lib/nearby-stores";
 
-export function StoreMap({ location, stores }: { location: Coordinates; stores: NearbyStore[] }) {
+export type StoreDeal = {
+  day: string;
+  discount: string;
+  paymentLabels: string[];
+  title: string;
+};
+
+export function StoreMap({ location, stores, dealsByStore }: { location: Coordinates; stores: NearbyStore[]; dealsByStore: Record<string, StoreDeal[]> }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -20,16 +27,36 @@ export function StoreMap({ location, stores }: { location: Coordinates; stores: 
         radius: 9, color: "#7b2638", fillColor: "#7b2638", fillOpacity: 1,
       }).bindPopup("Tu ubicación aproximada").addTo(map);
       stores.forEach((store) => {
+        const deals = dealsByStore[store.id] ?? [];
+        const popup = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent = store.name;
+        popup.append(title, document.createElement("br"), document.createTextNode(`${store.distanceKm.toFixed(1)} km`));
+        deals.forEach((deal) => {
+          const benefit = document.createElement("p");
+          benefit.className = "map-popup-deal";
+          benefit.textContent = `${deal.day}: ${deal.discount} · ${deal.paymentLabels.join(", ")}`;
+          popup.append(benefit);
+        });
+        if (!deals.length) {
+          const noDeal = document.createElement("small");
+          noDeal.textContent = "Sin descuento compatible cargado";
+          popup.append(document.createElement("br"), noDeal);
+        }
         leaflet.circleMarker([store.latitude, store.longitude], {
-          radius: 7, color: "#315b3a", fillColor: "#dcebd7", fillOpacity: 1,
-        }).bindPopup(`<strong>${store.name}</strong><br>${store.distanceKm.toFixed(1)} km`).addTo(map!);
+          radius: deals.length ? 10 : 6,
+          color: deals.length ? "#315b3a" : "#7f817d",
+          fillColor: deals.length ? "#75b668" : "#e2e1dc",
+          fillOpacity: 1,
+          weight: deals.length ? 3 : 1,
+        }).bindPopup(popup).addTo(map!);
       });
     });
     return () => {
       disposed = true;
       map?.remove();
     };
-  }, [location, stores]);
+  }, [dealsByStore, location, stores]);
 
   return <div className="store-map" ref={containerRef} aria-label="Mapa de supermercados cercanos" />;
 }

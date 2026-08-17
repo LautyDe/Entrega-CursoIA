@@ -7,7 +7,7 @@ import {
   selectBestPromotion,
 } from "../lib/payments.ts";
 import { parseStoredState, serializeStoredState } from "../lib/persistence.ts";
-import { benefitSourceForProvider, canonicalPaymentProvider, compatiblePromotions, validatePaymentProvider } from "../lib/argentina-payments.ts";
+import { benefitSourceForProvider, canonicalPaymentProvider, compatiblePromotions, paymentMethodsForPromotion, promotionMatchesStore, validatePaymentProvider } from "../lib/argentina-payments.ts";
 
 const promotions = [
   { day: "Miércoles", store: "Carrefour", bank: "Banco Ciudad", cardType: "Débito", discount: "20%", cap: "$8.000" },
@@ -104,4 +104,17 @@ test("muestra promociones de supermercado para Santander Río", () => {
     "Lunes", "Miércoles", "Miércoles", "Viernes", "Sábado",
   ]);
   assert.ok(promotions.every((promotion) => promotion.notes.includes("Plan Sueldo")));
+});
+
+test("relaciona supermercados cercanos con promociones y medios compatibles", () => {
+  const [promotion] = compatiblePromotions([
+    { bank: "Banco Santander", cardType: "Débito" },
+  ]).filter((item) => item.storeBrands.includes("Día"));
+
+  assert.ok(promotionMatchesStore(promotion, "Supermercado DIA", "DIA"));
+  assert.equal(promotionMatchesStore(promotion, "Coto Palermo", "Coto"), false);
+  assert.deepEqual(paymentMethodsForPromotion(promotion, [
+    { bank: "Banco Santander", cardType: "Débito" },
+    { bank: "Banco Santander", cardType: "Prepaga" },
+  ]), [{ bank: "Banco Santander", cardType: "Débito" }]);
 });

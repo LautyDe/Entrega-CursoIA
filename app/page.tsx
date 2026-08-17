@@ -2,11 +2,11 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { recipeCatalog } from "../lib/agents/catalog";
-import { argentinaCardTypes, argentinaPaymentProviders, benefitSourceForProvider, canonicalPaymentProvider, compatiblePromotions, paymentKey, validatePaymentProvider, verifiedPromotions } from "../lib/argentina-payments";
+import { argentinaCardTypes, argentinaPaymentProviders, benefitSourceForProvider, canonicalPaymentProvider, compatiblePromotions, paymentKey, paymentMethodsForPromotion, promotionMatchesStore, validatePaymentProvider, verifiedPromotions } from "../lib/argentina-payments";
 import { findNearbySupermarkets, type Coordinates, type NearbyStore } from "../lib/nearby-stores";
 import { migrateLegacyPayment, promotionSaving, selectBestPromotion, type CardType, type PaymentMethod } from "../lib/payments";
 import { MEALBOARD_STORAGE_KEY, parseStoredState, serializeStoredState } from "../lib/persistence";
-import { StoreMap } from "./store-map";
+import { StoreMap, type StoreDeal } from "./store-map";
 
 type MealSlot = "breakfast" | "lunch" | "snack" | "dinner";
 type Meal = {
@@ -285,14 +285,29 @@ export default function Home() {
   const checkedTotal = state.shopping.filter((item) => item.checked).reduce((sum, item) => sum + item.price, 0);
   const budgetLeft = state.profile.budget - shoppingTotal;
   const urgentInventory = state.inventory.filter(expiryUrgent);
-  const storedPaymentMethods = state.profile.paymentMethods.length
-    ? state.profile.paymentMethods
-    : [{ bank: state.profile.paymentBank, cardType: state.profile.paymentCardType }];
-  const activePaymentMethods = storedPaymentMethods.map((payment) => ({
-    ...payment,
-    bank: canonicalPaymentProvider(payment.bank) ?? payment.bank,
-  }));
-  const compatiblePromotionList = compatiblePromotions(activePaymentMethods);
+  const activePaymentMethods = useMemo(() => {
+    const storedPaymentMethods = state.profile.paymentMethods.length
+      ? state.profile.paymentMethods
+      : [{ bank: state.profile.paymentBank, cardType: state.profile.paymentCardType }];
+    return storedPaymentMethods.map((payment) => ({
+      ...payment,
+      bank: canonicalPaymentProvider(payment.bank) ?? payment.bank,
+    }));
+  }, [state.profile.paymentBank, state.profile.paymentCardType, state.profile.paymentMethods]);
+  const compatiblePromotionList = useMemo(() => compatiblePromotions(activePaymentMethods), [activePaymentMethods]);
+  const dealsByStore = useMemo(() => Object.fromEntries(nearbyStores.map((store) => {
+    const deals: StoreDeal[] = compatiblePromotionList
+      .filter((promotion) => promotionMatchesStore(promotion, store.name, store.brand))
+      .map((promotion) => ({
+        title: promotion.title,
+        day: promotion.day,
+        discount: promotion.discount,
+        paymentLabels: paymentMethodsForPromotion(promotion, activePaymentMethods)
+          .map((method) => `${method.bank} ${method.cardType.toLowerCase()}`),
+      }));
+    return [store.id, deals];
+  })), [activePaymentMethods, compatiblePromotionList, nearbyStores]);
+  const nearbyStoresWithDeals = nearbyStores.filter((store) => dealsByStore[store.id]?.length);
   const paymentCoverage = activePaymentMethods.map((payment) => ({
     payment,
     source: benefitSourceForProvider(payment.bank),
@@ -911,12 +926,12 @@ export default function Home() {
             })}</div>
           </section>
           <section className="content-panel nearby-panel">
-            <div className="panel-heading"><div><p className="eyebrow">CERCA TUYO</p><h2>Supermercados y descuentos en el mapa</h2><p>{locationStatus}</p></div><button className="primary-button" type="button" disabled={locating} onClick={requestLocation}>{locating ? "Buscando…" : "Usar mi ubicación"}</button></div>
+            <div className="panel-heading"><div><p className="eyebrow">CERCA TUYO</p><h2>Supermercados y descuentos en el mapa</h2><p>{locationStatus}{location && ` ${nearbyStoresWithDeals.length} tienen descuentos compatibles cargados.`}</p></div><button className="primary-button" type="button" disabled={locating} onClick={requestLocation}>{locating ? "Buscando…" : "Usar mi ubicación"}</button></div>
             <div className="privacy-note">La ubicación se usa solo para esta consulta y no se guarda en tu perfil ni en la memoria.</div>
-            {location && <div className="map-layout"><StoreMap location={location} stores={nearbyStores} /><div className="nearby-list">{nearbyStores.slice(0, 10).map((store) => {
-              const storePromotions = compatiblePromotionList.filter((promotion) => !promotion.storeBrands.length || promotion.storeBrands.some((brand) => store.brand.toLowerCase().includes(brand.toLowerCase()) || store.name.toLowerCase().includes(brand.toLowerCase())));
-              return <article key={store.id}><div><strong>{store.name}</strong><small>{store.distanceKm.toFixed(1)} km</small></div>{storePromotions.length ? <span className="store-deal">{storePromotions[0].day}: {storePromotions[0].discount} posible*</span> : <span>Sin beneficio compatible cargado</span>}<a href={`https://www.openstreetmap.org/?mlat=${store.latitude}&mlon=${store.longitude}#map=18/${store.latitude}/${store.longitude}`} target="_blank" rel="noreferrer">Abrir mapa</a></article>;
-            })}</div></div>}
+            {location && <><div className="map-legend"><span><i className="deal-dot" /> Con descuento compatible</span><span><i /> Sin descuento cargado</span></div><div className="map-layout"><StoreMap location={location} stores={nearbyStores} dealsByStore={dealsByStore} /><div className="nearby-list">{[...nearbyStores].sort((left, right) => Number(Boolean(dealsByStore[right.id]?.length)) - Number(Boolean(dealsByStore[left.id]?.length)) || left.distanceKm - right.distanceKm).slice(0, 10).map((store) => {
+              const storeDeals = dealsByStore[store.id] ?? [];
+              return <article className={storeDeals.length ? "has-deal" : ""} key={store.id}><div><strong>{store.name}</strong><small>{store.distanceKm.toFixed(1)} km</small></div>{storeDeals.length ? storeDeals.map((deal) => <div className="store-deal-detail" key={`${deal.title}-${deal.day}`}><span className="store-deal">{deal.day}: {deal.discount} posible*</span><small>{deal.paymentLabels.join(" · ")}</small></div>) : <span>Sin beneficio compatible cargado</span>}<a href={`https://www.openstreetmap.org/?mlat=${store.latitude}&mlon=${store.longitude}#map=18/${store.latitude}/${store.longitude}`} target="_blank" rel="noreferrer">Abrir mapa</a></article>;
+            })}</div></div></>}
             {location && nearbyStores.length > 0 && <small>*La cercanía no garantiza adhesión a la promoción. Verificá el comercio en las condiciones oficiales.</small>}
           </section>
         </>)}
