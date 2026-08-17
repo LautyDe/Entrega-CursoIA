@@ -74,7 +74,7 @@ const providerSearchTerms: Record<string, string[]> = {
   "Banco Patagonia": ["patagonia"],
   "Banco Hipotecario": ["hipotecario"],
   "Banco Comafi": ["comafi"],
-  "Mercado Pago": ["mercado pago"],
+  "Mercado Pago": ["mercado pago", "mercadopago"],
   MODO: ["modo"],
   "Naranja X": ["naranja x", "tarjeta naranja"],
   Ualá: ["ualá", "uala"],

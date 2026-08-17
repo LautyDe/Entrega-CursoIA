@@ -46,6 +46,9 @@ Las tiendas basadas en VTEX u otras aplicaciones pueden publicar condiciones
 dentro de datos estructurados embebidos. MealBoard analiza esos datos como
 texto sin ejecutar sus scripts, descarta vigencias vencidas cuando la fuente
 publica fechas y mantiene los resultados como referencias hasta verificarlos.
+En Coto también se consulta directamente la sección pública de términos y su
+endpoint oficial de promociones multicanal, porque la página los carga mediante
+un iframe y una aplicación Angular en lugar de enlaces HTML convencionales.
 
 ## Tecnologías
 

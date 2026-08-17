@@ -88,6 +88,25 @@ test("does not treat a zero percentage as a supermarket offer", () => {
   assert.deepEqual(references, []);
 });
 
+test("extracts a selected wallet from Coto's official promotions JSON", () => {
+  const json = JSON.stringify({ result: { promocionesSucursalesFisicas: [{
+    diasVigencia: "Viernes",
+    dias: [{ descripcion: "Viernes" }],
+    textoDescuento: "25% DE DESCUENTO",
+    descripcion: "Utilizando todos los medios de pago dentro de la app",
+    observacion: "No válido para venta online. Aplican exclusiones.",
+    icono: "logo_mercadopago.png",
+  }] } });
+  const references = extractStorePaymentReferences(json, "Coto", [
+    { bank: "Mercado Pago", cardType: "Dinero en cuenta" },
+  ], "2026-08-17");
+
+  assert.equal(references.length, 1);
+  assert.equal(references[0].provider, "Mercado Pago");
+  assert.equal(references[0].day, "Viernes");
+  assert.equal(references[0].discount, "25%");
+});
+
 test("follows only relevant sections inside the same official site", () => {
   const links = extractRelevantInternalLinks(`
     <a href="/beneficios/promociones-bancarias">Promociones bancarias</a>

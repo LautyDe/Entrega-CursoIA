@@ -20,11 +20,18 @@ export type StoreBenefitDiscovery = {
   usefulPages?: string[];
 };
 
-type StoreSource = { store: string; aliases: string[]; url: string; label: string };
+type StoreSource = { store: string; aliases: string[]; url: string; label: string; sectionUrls?: string[] };
 
 export const officialStoreBenefitSources: StoreSource[] = [
   { store: "Carrefour", aliases: ["carrefour", "carrefour market", "carrefour express", "carrefour maxi"], url: "https://www.carrefour.com.ar/", label: "Promociones oficiales Carrefour" },
-  { store: "Coto", aliases: ["coto"], url: "https://www.coto.com.ar/hoy/index.asp", label: "Descuentos oficiales Coto" },
+  {
+    store: "Coto", aliases: ["coto"], url: "https://www.coto.com.ar/hoy/index.asp", label: "Descuentos oficiales Coto",
+    sectionUrls: [
+      "https://www.coto.com.ar/legales/",
+      "https://www.coto.com.ar/terminos-descuentos",
+      "https://www.coto.com.ar/rest/model/atg/actors/cProfileActor/getPromocionesMulticanal?enviroment=ag",
+    ],
+  },
   { store: "Día", aliases: ["día", "dia", "supermercados dia"], url: "https://diaonline.supermercadosdia.com.ar/medios-de-pago-y-promociones", label: "Promociones oficiales Día" },
   { store: "Jumbo", aliases: ["jumbo"], url: "https://www.jumbo.com.ar/descuentos-del-dia?type=por-banco", label: "Descuentos bancarios Jumbo" },
   { store: "Disco", aliases: ["disco", "disco express"], url: "https://www.disco.com.ar/descuentos-del-dia?type=por-banco", label: "Descuentos bancarios Disco" },
@@ -47,7 +54,11 @@ export async function discoverStoreBenefits(stores: Array<{ name: string; brand:
   return Promise.all(sourcesForNearbyStores(stores).map(async (source) => {
     const checkedAt = new Date().toISOString();
     try {
-      const pages = await crawlOfficialSite(source.url);
+      const crawledGroups = await Promise.all([
+        crawlOfficialSite(source.url),
+        ...(source.sectionUrls ?? []).map((url) => crawlOfficialSite(url, 2, 1).catch(() => [])),
+      ]);
+      const pages = crawledGroups.flat().filter((page, index, all) => all.findIndex((item) => item.url === page.url) === index);
       const extracted = pages.map((page) => ({
         page,
         references: extractStorePaymentReferences(page.body, source.store, methods).map((reference) => ({
