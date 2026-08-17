@@ -14,7 +14,8 @@ export type ProfileInput = {
   dislikes: string;
   allergies: string;
   appliances: string;
-  payment: string;
+  paymentBank: string;
+  paymentCardType: "Débito" | "Crédito";
   nutrition?: boolean;
 };
 
@@ -22,6 +23,7 @@ export type PromotionInput = {
   day: string;
   store: string;
   bank: string;
+  cardType: "Débito" | "Crédito";
   discount: string;
   cap: string;
 };

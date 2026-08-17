@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { recipeCatalog } from "../lib/agents/catalog";
+import { migrateLegacyPayment, promotionSaving, selectBestPromotion, type CardType } from "../lib/payments";
+import { MEALBOARD_STORAGE_KEY, parseStoredState, serializeStoredState } from "../lib/persistence";
 
 type MealSlot = "breakfast" | "lunch" | "snack" | "dinner";
 type Meal = {
@@ -19,7 +21,7 @@ type ShoppingItem = { id: number; name: string; amount: string; price: number; c
 type Profile = {
   name: string; budget: number; level: string; dislikes: string;
   likes: string;
-  allergies: string; appliances: string; payment: string; nutrition: boolean;
+  allergies: string; appliances: string; paymentBank: string; paymentCardType: CardType; nutrition: boolean;
   city: string; planningDay: string; plannedMeals: MealSlot[];
 };
 type CommunityComment = { id: number; author: string; text: string };
@@ -97,7 +99,7 @@ const defaultProfile: Profile = {
   name: "Lucía Díaz", budget: 35000, level: "Principiante", dislikes: "Aceitunas",
   likes: "Lentejas, pasta y verduras",
   allergies: "Ninguna", appliances: "Horno, anafe, microondas y licuadora",
-  payment: "Banco Ciudad · Débito", nutrition: true, city: "Ciudad de Buenos Aires",
+  paymentBank: "Banco Ciudad", paymentCardType: "Débito", nutrition: true, city: "Ciudad de Buenos Aires",
   planningDay: "Domingo", plannedMeals: ["lunch", "dinner"],
 };
 
@@ -108,10 +110,10 @@ const initialCommunity: CommunityCalendar[] = [
 ];
 
 const promotions = [
-  { day: "Miércoles", store: "Carrefour", bank: "Banco Ciudad", discount: "20%", cap: "$8.000" },
-  { day: "Jueves", store: "Coto", bank: "Mercado Pago", discount: "15%", cap: "$6.000" },
-  { day: "Sábado", store: "Día", bank: "MODO", discount: "25%", cap: "$5.000" },
-];
+  { day: "Miércoles", store: "Carrefour", bank: "Banco Ciudad", cardType: "Débito", discount: "20%", cap: "$8.000" },
+  { day: "Jueves", store: "Coto", bank: "Banco Galicia", cardType: "Crédito", discount: "15%", cap: "$6.000" },
+  { day: "Sábado", store: "Día", bank: "Banco Nación", cardType: "Débito", discount: "25%", cap: "$5.000" },
+] as const;
 
 const initialState: AppState = {
   week: initialWeek,
@@ -150,12 +152,6 @@ function money(value: number) {
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function bestPromotionFor(payment: string) {
-  const normalized = payment.toLowerCase();
-  return promotions.find((promo) => normalized.includes(promo.bank.toLowerCase()))
-    ?? [...promotions].sort((a, b) => Number.parseInt(b.discount) - Number.parseInt(a.discount))[0];
 }
 
 function expiryUrgent(item: Ingredient) {
@@ -208,14 +204,19 @@ export default function Home() {
   const scanInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const local = localStorage.getItem("mealboard-state");
-    if (!local) return;
-    try {
-      const restored = JSON.parse(local) as Partial<AppState>;
+    const restored = parseStoredState(localStorage.getItem(MEALBOARD_STORAGE_KEY)) as Partial<AppState> | null;
+    if (restored) {
       const migrated: AppState = {
         ...initialState,
         ...restored,
-        profile: { ...defaultProfile, ...(restored.profile ?? {}) },
+        profile: {
+          ...defaultProfile,
+          ...(restored.profile ?? {}),
+          ...migrateLegacyPayment(
+            (restored.profile ?? {}) as unknown as Record<string, unknown>,
+            { bank: defaultProfile.paymentBank, cardType: defaultProfile.paymentCardType },
+          ),
+        },
         community: restored.community ?? initialCommunity,
         memory: restored.memory ?? initialState.memory,
         purchases: restored.purchases ?? initialState.purchases,
@@ -226,8 +227,6 @@ export default function Home() {
       };
       const timer = window.setTimeout(() => setState(migrated), 0);
       return () => window.clearTimeout(timer);
-    } catch {
-      return;
     }
   }, []);
 
@@ -240,7 +239,7 @@ export default function Home() {
 
   const persist = (next: AppState) => {
     setState(next);
-    localStorage.setItem("mealboard-state", JSON.stringify(next));
+    localStorage.setItem(MEALBOARD_STORAGE_KEY, serializeStoredState(next));
   };
 
   const notify = (message: string) => {
@@ -257,16 +256,17 @@ export default function Home() {
   const checkedTotal = state.shopping.filter((item) => item.checked).reduce((sum, item) => sum + item.price, 0);
   const budgetLeft = state.profile.budget - shoppingTotal;
   const urgentInventory = state.inventory.filter(expiryUrgent);
-  const bestPromotion = bestPromotionFor(state.profile.payment);
-  const promoPercent = Number.parseInt(bestPromotion.discount) / 100;
-  const promoCap = Number(bestPromotion.cap.replace(/\D/g, ""));
-  const estimatedPromoSaving = Math.min(promoCap, shoppingTotal * promoPercent);
+  const bestPromotion = selectBestPromotion({
+    bank: state.profile.paymentBank,
+    cardType: state.profile.paymentCardType,
+  }, promotions);
+  const estimatedPromoSaving = promotionSaving(shoppingTotal, bestPromotion);
   const savedFromPurchases = state.purchases.reduce((sum, purchase) => sum + purchase.saved, 0);
   const totalPrepared = state.reviews.reduce((sum, review) => sum + review.prepared, 0);
 
   const notifications = [
     ...(urgentInventory.length ? [{ icon: "!", title: `${urgentInventory.length} alimentos próximos a vencer`, detail: urgentInventory.map((item) => item.name).join(", ") }] : []),
-    { icon: "%", title: `${bestPromotion.day} de descuento`, detail: `${bestPromotion.discount} con ${bestPromotion.bank} en ${bestPromotion.store}.` },
+    ...(bestPromotion ? [{ icon: "%", title: `${bestPromotion.day} de descuento`, detail: `${bestPromotion.discount} con ${bestPromotion.cardType.toLowerCase()} de ${bestPromotion.bank} en ${bestPromotion.store}.` }] : []),
     ...(shoppingTotal > state.profile.budget * .8 ? [{ icon: "$", title: "Presupuesto próximo al límite", detail: `La lista usa ${Math.round(shoppingTotal / state.profile.budget * 100)}% del presupuesto.` }] : []),
     { icon: "✓", title: "Evaluación semanal disponible", detail: "Registrá gastos, comidas y dificultades para que la memoria aprenda." },
   ];
@@ -465,8 +465,10 @@ export default function Home() {
       notify("Marcá al menos un producto como comprado");
       return;
     }
+    const purchaseId = Math.max(0, ...state.purchases.map((purchase) => purchase.id)) + 1;
+    const memoryId = Math.max(0, ...state.memory.map((record) => record.id)) + 1;
     const spent = bought.reduce((sum, item) => sum + item.price, 0);
-    const saved = Math.round(Math.min(promoCap, spent * promoPercent));
+    const saved = promotionSaving(spent, bestPromotion);
     const newInventory = bought.map((item, index) => ({
       id: Date.now() + index, name: item.name, amount: item.amount, price: item.price,
       purchaseDate: todayIso(), expiryDate: "", expiry: "7 días",
@@ -476,10 +478,12 @@ export default function Home() {
       inventory: [...state.inventory, ...newInventory],
       shopping: state.shopping.filter((item) => !item.checked),
       savings: state.savings + saved,
-      purchases: [...state.purchases, { id: Date.now(), date: "Hoy", spent, saved, store: bestPromotion.store, discount: bestPromotion.discount }],
-      memory: [...state.memory, { id: Date.now() + 50, text: `Aprovechaste ${bestPromotion.discount} en ${bestPromotion.store} y ahorraste ${money(saved)}.`, kind: "Compra", createdAt: "Hoy" }],
+      purchases: [...state.purchases, { id: purchaseId, date: "Hoy", spent, saved, store: bestPromotion?.store ?? "Sin promoción", discount: bestPromotion?.discount ?? "0%" }],
+      memory: [...state.memory, { id: memoryId, text: bestPromotion
+        ? `Aprovechaste ${bestPromotion.discount} en ${bestPromotion.store} y ahorraste ${money(saved)}.`
+        : `Completaste una compra sin una promoción compatible para ${state.profile.paymentCardType.toLowerCase()} de ${state.profile.paymentBank}.`, kind: "Compra", createdAt: "Hoy" }],
     });
-    notify(`Compra finalizada: ${money(saved)} ahorrados`);
+    notify(bestPromotion ? `Compra finalizada: ${money(saved)} ahorrados` : "Compra finalizada sin promoción compatible");
   };
 
   const openMealEdit = () => {
@@ -661,8 +665,8 @@ export default function Home() {
                 </div>
               </article>
               <article className="discount-card">
-                <p className="eyebrow">PRÓXIMA COMPRA</p><h2>{bestPromotion.day} con {bestPromotion.discount} de ahorro</h2>
-                <p>{bestPromotion.bank} tiene descuento en {bestPromotion.store}. Tope {bestPromotion.cap}.</p>
+                <p className="eyebrow">PRÓXIMA COMPRA</p><h2>{bestPromotion ? `${bestPromotion.day} con ${bestPromotion.discount} de ahorro` : "Sin promoción compatible"}</h2>
+                <p>{bestPromotion ? `${bestPromotion.bank} tiene descuento con ${bestPromotion.cardType.toLowerCase()} en ${bestPromotion.store}. Tope ${bestPromotion.cap}.` : `No hay descuentos de demostración para ${state.profile.paymentCardType.toLowerCase()} de ${state.profile.paymentBank}.`}</p>
                 <button className="discount-action" onClick={() => setActiveTab("shopping")} type="button">Ver lista de compras <span>→</span></button>
               </article>
             </section>
@@ -764,8 +768,8 @@ export default function Home() {
               <button className="primary-button full purchase-button" type="button" onClick={completePurchase}>Finalizar compra y actualizar inventario</button>
             </article>
             <aside className="promo-card">
-              <span className="promo-badge">MEJOR OPCIÓN</span><p className="eyebrow">COMPRÁ EL {bestPromotion.day.toUpperCase()}</p><h2>{bestPromotion.discount} con {bestPromotion.bank}</h2>
-              <p>En {bestPromotion.store} y comercios adheridos. Tope de reintegro: {bestPromotion.cap}.</p>
+              <span className="promo-badge">DATOS DE DEMOSTRACIÓN</span><p className="eyebrow">{bestPromotion ? `COMPRÁ EL ${bestPromotion.day.toUpperCase()}` : "SIN COINCIDENCIAS"}</p><h2>{bestPromotion ? `${bestPromotion.discount} con ${bestPromotion.bank}` : "No hay promoción compatible"}</h2>
+              <p>{bestPromotion ? `Con ${bestPromotion.cardType.toLowerCase()} en ${bestPromotion.store} y comercios adheridos. Tope de reintegro: ${bestPromotion.cap}.` : `Revisamos banco y tipo de tarjeta. No aplicaremos un descuento de otro medio de pago.`}</p>
               <div className="promo-saving"><span>Ahorro estimado</span><strong>{money(estimatedPromoSaving)}</strong></div>
               {shoppingTotal > state.profile.budget && <div className="budget-warning">La lista supera tu presupuesto por {money(shoppingTotal - state.profile.budget)}. Podés quitar productos o generar un plan más económico.</div>}
               <small>Promociones precargadas y cruzadas con tu medio de pago.</small>
@@ -782,7 +786,7 @@ export default function Home() {
             </div>
             <div className="savings-grid">
               <article><p className="eyebrow">PROMOCIONES PRECARGADAS</p><h2>Oportunidades de la semana</h2>
-                {promotions.map((promo) => <div className="promo-row" key={promo.day}><span>{promo.day.slice(0, 3)}</span><div><strong>{promo.discount} en {promo.store}</strong><small>{promo.bank} · Tope {promo.cap}</small></div></div>)}
+                {promotions.map((promo) => <div className="promo-row" key={promo.day}><span>{promo.day.slice(0, 3)}</span><div><strong>{promo.discount} en {promo.store}</strong><small>{promo.bank} · {promo.cardType} · Tope {promo.cap}</small></div></div>)}
               </article>
               <article><p className="eyebrow">HISTORIAL DE COMPRAS</p><h2>Gasto y ahorro</h2>
                 <div className="history-chart">
@@ -818,7 +822,8 @@ export default function Home() {
                   <label>Presupuesto semanal<input type="number" value={state.profile.budget} onChange={(event) => setState({ ...state, profile: { ...state.profile, budget: Number(event.target.value) } })} /></label>
                   <label>Día de planificación<select value={state.profile.planningDay} onChange={(event) => setState({ ...state, profile: { ...state.profile, planningDay: event.target.value } })}>{["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"].map((day) => <option key={day}>{day}</option>)}</select></label>
                   <label>Nivel de cocina<select value={state.profile.level} onChange={(event) => setState({ ...state, profile: { ...state.profile, level: event.target.value } })}><option>Principiante</option><option>Intermedio</option><option>Avanzado</option></select></label>
-                  <label>Medio de pago<input value={state.profile.payment} onChange={(event) => setState({ ...state, profile: { ...state.profile, payment: event.target.value } })} /></label>
+                  <label>Banco<select value={state.profile.paymentBank} onChange={(event) => setState({ ...state, profile: { ...state.profile, paymentBank: event.target.value } })}><option>Banco Ciudad</option><option>Banco Galicia</option><option>Banco Nación</option><option>Otro banco</option></select></label>
+                  <label>Tipo de tarjeta<select value={state.profile.paymentCardType} onChange={(event) => setState({ ...state, profile: { ...state.profile, paymentCardType: event.target.value as CardType } })}><option>Débito</option><option>Crédito</option></select></label>
                   <label>Comidas e ingredientes preferidos<input value={state.profile.likes} onChange={(event) => setState({ ...state, profile: { ...state.profile, likes: event.target.value } })} /></label>
                   <label>Comidas que no te gustan<input value={state.profile.dislikes} onChange={(event) => setState({ ...state, profile: { ...state.profile, dislikes: event.target.value } })} /></label>
                   <label>Alergias y restricciones<input value={state.profile.allergies} onChange={(event) => setState({ ...state, profile: { ...state.profile, allergies: event.target.value } })} /></label>
@@ -826,7 +831,7 @@ export default function Home() {
                   <fieldset className="wide meal-selector"><legend>¿Qué comidas querés planificar?</legend>{slotDefinitions.map((slot) => <label key={slot.id}><input type="checkbox" checked={state.profile.plannedMeals.includes(slot.id)} onChange={(event) => { const plannedMeals = event.target.checked ? [...state.profile.plannedMeals, slot.id] : state.profile.plannedMeals.filter((item) => item !== slot.id); if (plannedMeals.length) setState({ ...state, profile: { ...state.profile, plannedMeals } }); }} />{slot.label}</label>)}</fieldset>
                   <label className="toggle wide"><input type="checkbox" checked={state.profile.nutrition} onChange={(event) => setState({ ...state, profile: { ...state.profile, nutrition: event.target.checked } })} /><span />Incluir recomendaciones nutricionales opcionales</label>
                 </div>
-                <div className="form-actions"><button className="secondary-button" type="button" onClick={() => { localStorage.removeItem("mealboard-state"); setState(initialState); notify("Datos de demostración restablecidos"); }}>Restablecer demo</button><button className="primary-button" type="submit">Guardar cambios</button></div>
+                <div className="form-actions"><button className="secondary-button" type="button" onClick={() => { localStorage.removeItem(MEALBOARD_STORAGE_KEY); setState(initialState); notify("Datos de demostración restablecidos"); }}>Restablecer demo</button><button className="primary-button" type="submit">Guardar cambios</button></div>
               </form>
               <section className="content-panel memory-panel">
                 <div className="panel-heading"><div><p className="eyebrow">MEMORIA PERSISTENTE</p><h2>Historial y control</h2></div><span className="memory-count">{state.memory.length} datos</span></div>

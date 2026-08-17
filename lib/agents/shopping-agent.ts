@@ -1,4 +1,5 @@
 import { ingredientPrices } from "./catalog";
+import { promotionSaving, selectBestPromotion } from "../payments";
 import { addRun, normalize, type WorkingState } from "./types";
 
 export function runShoppingAgent(state: WorkingState): WorkingState {
@@ -12,21 +13,18 @@ export function runShoppingAgent(state: WorkingState): WorkingState {
   }));
   const estimatedCost = shopping.reduce((sum, item) => sum + item.price, 0);
 
-  const payment = normalize(state.input.profile.payment);
   const promotions = state.input.promotions ?? [];
-  const bestPromotion = promotions
-    .filter((promotion) => payment.includes(normalize(promotion.bank).split(" ")[0]))
-    .sort((a, b) => Number.parseInt(b.discount) - Number.parseInt(a.discount))[0]
-    ?? promotions.sort((a, b) => Number.parseInt(b.discount) - Number.parseInt(a.discount))[0];
-  const discount = bestPromotion ? Number.parseInt(bestPromotion.discount) / 100 : 0;
-  const cap = bestPromotion ? Number(bestPromotion.cap.replace(/\D/g, "")) : 0;
-  const estimatedSaving = Math.min(estimatedCost * discount, cap || Number.POSITIVE_INFINITY);
+  const bestPromotion = selectBestPromotion({
+    bank: state.input.profile.paymentBank,
+    cardType: state.input.profile.paymentCardType,
+  }, promotions);
+  const estimatedSaving = promotionSaving(estimatedCost, bestPromotion);
 
   return addRun({
     ...state,
     shopping,
     estimatedCost,
-    estimatedSaving: Number.isFinite(estimatedSaving) ? Math.round(estimatedSaving) : 0,
+    estimatedSaving,
     bestPromotion,
   }, {
     id: "shopping",
@@ -34,8 +32,8 @@ export function runShoppingAgent(state: WorkingState): WorkingState {
     role: "Calcula faltantes y cruza medios de pago con descuentos.",
     observation: `${required.length} ingredientes requeridos y ${state.inventoryNames.length} disponibles.`,
     decision: bestPromotion
-      ? `Recomendar ${bestPromotion.day} en ${bestPromotion.store} con ${bestPromotion.discount}.`
-      : "No aplicar promociones no verificadas.",
+      ? `Recomendar ${bestPromotion.day} en ${bestPromotion.store} con ${bestPromotion.discount}, ${bestPromotion.cardType.toLowerCase()} de ${bestPromotion.bank}.`
+      : `No hay promociones compatibles con ${state.input.profile.paymentCardType.toLowerCase()} de ${state.input.profile.paymentBank}.`,
     output: `${shopping.length} productos faltantes; compra estimada $${estimatedCost.toLocaleString("es-AR")}; ahorro $${Math.round(estimatedSaving || 0).toLocaleString("es-AR")}.`,
   });
 }
