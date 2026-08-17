@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { recipeCatalog } from "../lib/agents/catalog";
-import { argentinaCardTypes, argentinaPaymentProviders, compatiblePromotions, paymentKey, validatePaymentProvider, verifiedPromotions } from "../lib/argentina-payments";
+import { argentinaCardTypes, argentinaPaymentProviders, benefitSourceForProvider, canonicalPaymentProvider, compatiblePromotions, paymentKey, validatePaymentProvider, verifiedPromotions } from "../lib/argentina-payments";
 import { findNearbySupermarkets, type Coordinates, type NearbyStore } from "../lib/nearby-stores";
 import { migrateLegacyPayment, promotionSaving, selectBestPromotion, type CardType, type PaymentMethod } from "../lib/payments";
 import { MEALBOARD_STORAGE_KEY, parseStoredState, serializeStoredState } from "../lib/persistence";
@@ -276,10 +276,19 @@ export default function Home() {
   const checkedTotal = state.shopping.filter((item) => item.checked).reduce((sum, item) => sum + item.price, 0);
   const budgetLeft = state.profile.budget - shoppingTotal;
   const urgentInventory = state.inventory.filter(expiryUrgent);
-  const activePaymentMethods = state.profile.paymentMethods.length
+  const storedPaymentMethods = state.profile.paymentMethods.length
     ? state.profile.paymentMethods
     : [{ bank: state.profile.paymentBank, cardType: state.profile.paymentCardType }];
+  const activePaymentMethods = storedPaymentMethods.map((payment) => ({
+    ...payment,
+    bank: canonicalPaymentProvider(payment.bank) ?? payment.bank,
+  }));
   const compatiblePromotionList = compatiblePromotions(activePaymentMethods);
+  const paymentCoverage = activePaymentMethods.map((payment) => ({
+    payment,
+    source: benefitSourceForProvider(payment.bank),
+    promotions: compatiblePromotionList.filter((promotion) => promotion.banks.includes(payment.bank) && promotion.cardTypes.includes(payment.cardType)),
+  }));
   const bestPromotion = activePaymentMethods
     .map((payment) => selectBestPromotion(payment, promotions))
     .filter((promotion): promotion is NonNullable<typeof promotion> => Boolean(promotion))
@@ -387,7 +396,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           city: state.profile.city,
-          profile: state.profile,
+          profile: { ...state.profile, paymentMethods: activePaymentMethods },
           inventory: state.inventory.map((item) => ({ ...item, expiry: item.expiry || item.expiryDate || "Sin fecha" })),
           priorFeedback: [...state.feedback, ...state.memory.map((memory) => memory.text)],
           promotions,
@@ -862,6 +871,10 @@ export default function Home() {
               {bestPromotion && <><small>Verificada: {bestPromotion.verifiedAt} · Vigente hasta: {bestPromotion.validThrough}</small><a className="promo-source" href={bestPromotion.sourceUrl} target="_blank" rel="noreferrer">Ver condiciones oficiales ↗</a></>}
               <small>Los beneficios pueden cambiar o agotarse. Confirmalos con el banco antes de pagar.</small>
             </aside>
+          </section>
+          <section className="content-panel coverage-panel">
+            <div className="panel-heading"><div><p className="eyebrow">COBERTURA DE BENEFICIOS</p><h2>Qué verificamos para cada medio</h2><p>Una ausencia en el catálogo no significa que el banco no tenga descuentos. Consultá su fuente oficial para beneficios personalizados o recién publicados.</p></div></div>
+            <div className="coverage-grid">{paymentCoverage.map(({ payment, source, promotions: matchingPromotions }) => <article key={paymentKey(payment)}><div><strong>{payment.bank}</strong><span>{payment.cardType}</span></div>{matchingPromotions.length ? <p className="coverage-ok">{matchingPromotions.length} promoción estructurada vigente</p> : <p className="coverage-review">Requiere consulta en la fuente oficial</p>}{source?.notice && <p>{source.notice}</p>}{source ? <><a href={source.url} target="_blank" rel="noreferrer">{source.label} ↗</a><small>Fuente {source.coverage === "provider" ? "de la entidad" : "agregadora"} · revisada {source.reviewedAt}</small></> : <small>Entidad personalizada sin fuente oficial asociada.</small>}</article>)}</div>
           </section>
           <section className="content-panel nearby-panel">
             <div className="panel-heading"><div><p className="eyebrow">CERCA TUYO</p><h2>Supermercados y descuentos en el mapa</h2><p>{locationStatus}</p></div><button className="primary-button" type="button" disabled={locating} onClick={requestLocation}>{locating ? "Buscando…" : "Usar mi ubicación"}</button></div>

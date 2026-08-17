@@ -120,6 +120,11 @@ La explicación completa y los diagramas se encuentran en
 - Los errores de escritura cercanos a una entidad conocida generan una
   sugerencia. Las entidades desconocidas requieren confirmación, quedan
   marcadas como no verificadas y no reciben promociones.
+- Los nombres históricos y abreviaturas frecuentes, como `Santander Río`,
+  `BNA`, `Bapro` o `Banco Francés`, se normalizan a la entidad actual.
+- Cada medio seleccionado muestra su nivel de cobertura y un acceso a la
+  fuente oficial. No encontrar una promoción estructurada no se presenta como
+  prueba de que el banco carezca de beneficios.
 - La ubicación requiere permiso explícito, se utiliza para una consulta puntual
   de comercios cercanos y no se persiste en el perfil ni en la memoria.
 - No se deben presentar las recomendaciones nutricionales como asesoramiento

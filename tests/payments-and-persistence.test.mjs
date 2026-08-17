@@ -7,7 +7,7 @@ import {
   selectBestPromotion,
 } from "../lib/payments.ts";
 import { parseStoredState, serializeStoredState } from "../lib/persistence.ts";
-import { compatiblePromotions, validatePaymentProvider } from "../lib/argentina-payments.ts";
+import { benefitSourceForProvider, canonicalPaymentProvider, compatiblePromotions, validatePaymentProvider } from "../lib/argentina-payments.ts";
 
 const promotions = [
   { day: "Miércoles", store: "Carrefour", bank: "Banco Ciudad", cardType: "Débito", discount: "20%", cap: "$8.000" },
@@ -85,4 +85,12 @@ test("valida, corrige y marca entidades de pago desconocidas", () => {
   assert.deepEqual(validatePaymentProvider("Banco Nasión"), { status: "suggestion", provider: "Banco Nación" });
   assert.deepEqual(validatePaymentProvider(""), { status: "empty" });
   assert.deepEqual(validatePaymentProvider("Banco Inventado"), { status: "unknown", provider: "Banco Inventado" });
+});
+
+test("normaliza alias históricos y ofrece una fuente oficial", () => {
+  assert.equal(canonicalPaymentProvider("Santander Río"), "Banco Santander");
+  assert.deepEqual(validatePaymentProvider("Santander Rio"), { status: "known", provider: "Banco Santander" });
+  assert.equal(benefitSourceForProvider("Santander Río")?.url, "https://www.santander.com.ar/personas/beneficios");
+  assert.equal(benefitSourceForProvider("Mercado Pago")?.coverage, "provider");
+  assert.equal(benefitSourceForProvider("Banco Inventado"), undefined);
 });

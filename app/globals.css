@@ -92,6 +92,51 @@
   margin-top: 22px;
 }
 
+.coverage-panel {
+  margin-top: 22px;
+}
+
+.coverage-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.coverage-grid article {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  display: grid;
+  gap: 9px;
+  padding: 15px;
+}
+
+.coverage-grid article > div {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.coverage-grid article > div span {
+  background: var(--cream);
+  border-radius: 999px;
+  padding: 5px 8px;
+}
+
+.coverage-grid article a {
+  color: var(--wine);
+  font-weight: 800;
+}
+
+.coverage-ok {
+  color: var(--green);
+  font-weight: 800;
+}
+
+.coverage-review {
+  color: #8a5b00;
+  font-weight: 800;
+}
+
 .privacy-note {
   background: var(--cream);
   border-radius: 12px;
