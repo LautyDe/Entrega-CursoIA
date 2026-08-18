@@ -157,6 +157,18 @@ Google debe tener autorizada la URL de retorno
 `https://TU-DOMINIO/api/auth/callback/google`. Para desarrollo local agregá la
 misma ruta bajo el origen local que muestre Vite.
 
+### Instalación en Android y iPhone
+
+MealBoard es una Progressive Web App (PWA): usa una sola base de código, se
+instala desde el navegador y se abre en una ventana independiente.
+
+- Android/Chrome: menú del navegador → **Instalar aplicación**.
+- iPhone/Safari: botón **Compartir** → **Agregar a inicio**.
+- El manifiesto define nombre, colores, orientación e iconos para ambos sistemas.
+- El service worker solo conserva la pantalla sin conexión y recursos visuales;
+  nunca almacena respuestas de `/api/`, sesiones ni promociones.
+- El login, el mapa y la actualización de descuentos requieren conexión.
+
 - El navegador conserva una copia de respaldo bajo `mealboard-state`; la copia
   asociada al usuario en D1 es la persistencia principal después del acceso.
 - El medio de pago se guarda mediante banco y tipo de tarjeta separados. Los

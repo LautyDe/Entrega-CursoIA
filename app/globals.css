@@ -445,6 +445,16 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+@media (display-mode: standalone) {
+  body {
+    overscroll-behavior-y: none;
+  }
+
+  .workspace {
+    padding-top: max(36px, env(safe-area-inset-top));
+  }
+}
+
 button {
   color: inherit;
   font: inherit;
@@ -2492,6 +2502,7 @@ textarea {
     background: rgba(255, 255, 255, 0.96);
     box-shadow: 0 -8px 28px rgba(71, 47, 37, 0.08);
     backdrop-filter: blur(14px);
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   .mobile-nav button {
@@ -2506,6 +2517,16 @@ textarea {
     background: transparent;
     color: var(--muted);
     cursor: pointer;
+  }
+
+  .workspace {
+    padding-bottom: calc(92px + env(safe-area-inset-bottom));
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
   }
 
   .mobile-nav button > span {

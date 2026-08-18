@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const developmentPreviewMeta =
@@ -20,6 +21,16 @@ const ctx = {
   waitUntil() {},
   passThroughOnException() {},
 };
+
+test("includes an installable mobile web app manifest", async () => {
+  const manifest = JSON.parse(await readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"));
+  assert.equal(manifest.display, "standalone");
+  assert.equal(manifest.start_url, "/");
+  assert.ok(manifest.icons.some((icon) => icon.sizes === "512x512" && icon.purpose.includes("maskable")));
+
+  const serviceWorker = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
+  assert.match(serviceWorker, /url\.pathname\.startsWith\("\/api\/"\)/);
+});
 
 test("renders development preview metadata", async () => {
   const worker = await loadWorker();

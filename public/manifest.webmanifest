@@ -1,0 +1,28 @@
+{
+  "name": "MealBoard — Tu semana organizada",
+  "short_name": "MealBoard",
+  "description": "Planificá comidas, aprovechá ingredientes y encontrá descuentos cercanos.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#fcf9f3",
+  "theme_color": "#7e1f36",
+  "lang": "es-AR",
+  "categories": ["food", "lifestyle", "shopping"],
+  "icons": [
+    {
+      "src": "/icons/mealboard-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/mealboard-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
