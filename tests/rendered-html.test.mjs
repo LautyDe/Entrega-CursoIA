@@ -57,7 +57,7 @@ test("exposes only authentication capability flags", async () => {
     GOOGLE_CLIENT_SECRET: "private-client-secret",
   }, ctx);
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { ready: true, email: false, google: true });
+  assert.deepEqual(await response.json(), { ready: true, email: true, emailDelivery: false, google: true });
 });
 
 test("coordinates nine agents and respects selected meal slots", async () => {

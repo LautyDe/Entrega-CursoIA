@@ -15,7 +15,8 @@ export function authCapabilities() {
   const config = globalThis.__MEALBOARD_AUTH_CONFIG__;
   return {
     ready: Boolean(config?.secret),
-    email: Boolean(config?.secret && config?.resendApiKey && config?.emailFrom),
+    email: Boolean(config?.secret),
+    emailDelivery: Boolean(config?.secret && config?.resendApiKey && config?.emailFrom),
     google: Boolean(config?.secret && config?.googleClientId && config?.googleClientSecret),
   };
 }
@@ -34,7 +35,7 @@ export function createAuth(requestUrl: string) {
     database: drizzleAdapter(getDb(), { provider: "sqlite", schema }),
     emailAndPassword: {
       enabled: true,
-      disableSignUp: !emailEnabled,
+      disableSignUp: false,
       requireEmailVerification: emailEnabled,
       minPasswordLength: 10,
       maxPasswordLength: 128,

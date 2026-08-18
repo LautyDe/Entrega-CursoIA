@@ -4,12 +4,12 @@ import { useEffect, useState, type FormEvent } from "react";
 import { authClient } from "../lib/auth-client";
 
 type Mode = "login" | "register" | "forgot";
-type Capabilities = { ready: boolean; email: boolean; google: boolean };
+type Capabilities = { ready: boolean; email: boolean; emailDelivery: boolean; google: boolean };
 
 export function AuthScreen() {
   const [mode, setMode] = useState<Mode>("login");
   const [form, setForm] = useState({ name: "", email: "", password: "", rememberMe: true });
-  const [capabilities, setCapabilities] = useState<Capabilities>({ ready: false, email: false, google: false });
+  const [capabilities, setCapabilities] = useState<Capabilities>({ ready: false, email: false, emailDelivery: false, google: false });
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -25,7 +25,11 @@ export function AuthScreen() {
       if (mode === "register") {
         const result = await authClient.signUp.email({ name: form.name.trim(), email: form.email.trim(), password: form.password, callbackURL: "/" });
         if (result.error) throw new Error(result.error.message);
-        setStatus("Te enviamos un correo para confirmar tu cuenta.");
+        if (capabilities.emailDelivery) {
+          setStatus("Te enviamos un correo para confirmar tu cuenta.");
+        } else {
+          window.location.reload();
+        }
       } else if (mode === "forgot") {
         const result = await authClient.requestPasswordReset({ email: form.email.trim(), redirectTo: "/reset-password" });
         if (result.error) throw new Error(result.error.message);
@@ -60,7 +64,7 @@ export function AuthScreen() {
       <label>Email<input required type="email" autoComplete="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label>
       {mode !== "forgot" && <label>Contraseña<input required minLength={10} maxLength={128} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} /><small>Mínimo 10 caracteres.</small></label>}
       {mode === "login" && <label className="remember-check"><input type="checkbox" checked={form.rememberMe} onChange={(event) => setForm({ ...form, rememberMe: event.target.checked })} /> Mantener mi sesión iniciada</label>}
-      <button className="primary-button auth-button" disabled={!capabilities.ready || busy || (mode !== "login" && !capabilities.email)} type="submit">{busy ? "Procesando…" : mode === "register" ? "Crear cuenta" : mode === "forgot" ? "Enviar enlace" : "Ingresar"}</button>
+      <button className="primary-button auth-button" disabled={!capabilities.ready || busy || (mode === "register" && !capabilities.email) || (mode === "forgot" && !capabilities.emailDelivery)} type="submit">{busy ? "Procesando…" : mode === "register" ? "Crear cuenta" : mode === "forgot" ? "Enviar enlace" : "Ingresar"}</button>
     </form>
     {status && <div className="auth-status" role="status">{status}</div>}
     <div className="auth-links">

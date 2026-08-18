@@ -197,7 +197,8 @@ sequenceDiagram
 
 MealBoard utiliza Better Auth con credenciales por email y Google OAuth. Better
 Auth mantiene usuarios, cuentas vinculadas, tokens de verificación y sesiones
-en D1; Resend entrega los mensajes de verificación y recuperación. Las rutas
+en D1; cuando está configurado, Resend entrega los mensajes de verificación y
+recuperación. Las rutas
 `/api/me` y `/api/user-state` validan la cookie de sesión del lado servidor y
 nunca confían en un identificador enviado por el navegador.
 

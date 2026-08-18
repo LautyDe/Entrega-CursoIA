@@ -133,8 +133,9 @@ La explicación completa y los diagramas se encuentran en
 
 ## Datos y limitaciones
 
-- El acceso utiliza Better Auth con registro por email y contraseña, sesiones
-  seguras, verificación de correo y recuperación mediante Resend. También admite
+- El acceso utiliza Better Auth con registro por email y contraseña y sesiones
+  seguras. Al configurar Resend también habilita verificación de correo y
+  recuperación de contraseña. Además admite
   Google OAuth cuando se configuran las credenciales del proyecto.
 - Las contraseñas se almacenan únicamente como hashes administrados por Better
   Auth. Calendario, inventario, memoria, compras y preferencias quedan asociados
