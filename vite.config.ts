@@ -1,5 +1,5 @@
 import vinext from "vinext";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import hostingConfig from "./.openai/hosting.json";
 import { sites } from "./build/sites-vite-plugin";
 
@@ -11,12 +11,13 @@ const { d1, r2 } = hostingConfig;
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
-const localBindingConfig = {
+function createLocalBindingConfig(env: Record<string, string | undefined>) {
+  return {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
   vars: Object.fromEntries([
     "BETTER_AUTH_SECRET", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "RESEND_API_KEY", "EMAIL_FROM",
-  ].flatMap((key) => process.env[key] ? [[key, process.env[key]]] : [])),
+  ].flatMap((key) => env[key] ? [[key, env[key]]] : [])),
   d1_databases: d1
     ? [
         {
@@ -34,9 +35,12 @@ const localBindingConfig = {
         },
       ]
     : [],
-};
+  };
+}
 
-export default defineConfig(async () => {
+export default defineConfig(async ({ mode }) => {
+  const localEnv = { ...loadEnv(mode, process.cwd(), ""), ...process.env };
+  const localBindingConfig = createLocalBindingConfig(localEnv);
   // Keep Wrangler and Miniflare state project-local. These are non-secret tool
   // settings; application environment belongs in ignored `.env*` files.
   process.env.WRANGLER_WRITE_LOGS ??= "false";
