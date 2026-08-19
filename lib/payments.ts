@@ -41,6 +41,23 @@ export function promotionSaving(cost: number, promotion?: PaymentPromotion) {
   return Math.round(Math.min(cost * discount, cap || Number.POSITIVE_INFINITY));
 }
 
+export function selectBestPromotionForPurchase<T extends PaymentPromotion>(
+  paymentMethods: readonly PaymentMethod[],
+  promotions: readonly T[],
+  purchaseCost: number,
+): T | undefined {
+  const compatible = promotions.filter((promotion) => paymentMethods.some((payment) =>
+    normalize(promotion.bank) === normalize(payment.bank)
+    && normalize(promotion.cardType) === normalize(payment.cardType),
+  ));
+
+  return compatible.sort((left, right) =>
+    promotionSaving(purchaseCost, right) - promotionSaving(purchaseCost, left)
+    || Number.parseInt(right.discount) - Number.parseInt(left.discount)
+    || left.store.localeCompare(right.store, "es-AR"),
+  )[0];
+}
+
 export function migrateLegacyPayment(
   profile: Record<string, unknown>,
   fallback: PaymentMethod,

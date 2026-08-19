@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { recipeCatalog } from "../lib/agents/catalog";
 import { argentinaCardTypes, benefitSourceForProvider, canonicalPaymentProvider, compatiblePromotions, paymentKey, paymentMethodsForPromotion, promotionMatchesStore, validatePaymentProvider, verifiedPromotions } from "../lib/argentina-payments";
 import { findNearbySupermarkets, type Coordinates, type NearbyStore } from "../lib/nearby-stores";
-import { migrateLegacyPayment, promotionSaving, selectBestPromotion, type CardType, type PaymentMethod } from "../lib/payments";
+import { migrateLegacyPayment, promotionSaving, selectBestPromotionForPurchase, type CardType, type PaymentMethod } from "../lib/payments";
 import { MEALBOARD_STORAGE_KEY, parseStoredState, serializeStoredState } from "../lib/persistence";
 import { extractPublicBenefitReferences, publicBenefitMatchesStore } from "../lib/public-benefit-extraction";
 import { StoreMap, type StoreDeal } from "./store-map";
@@ -395,10 +395,7 @@ export default function Home() {
     source: benefitSourceForProvider(payment.bank),
     promotions: compatiblePromotionList.filter((promotion) => promotion.banks.includes(payment.bank) && promotion.cardTypes.includes(payment.cardType)),
   }));
-  const bestPromotion = activePaymentMethods
-    .map((payment) => selectBestPromotion(payment, promotions))
-    .filter((promotion): promotion is NonNullable<typeof promotion> => Boolean(promotion))
-    .sort((a, b) => Number.parseInt(b.discount) - Number.parseInt(a.discount))[0];
+  const bestPromotion = selectBestPromotionForPurchase(activePaymentMethods, promotions, shoppingTotal);
   const estimatedPromoSaving = promotionSaving(shoppingTotal, bestPromotion);
   const savedFromPurchases = state.purchases.reduce((sum, purchase) => sum + purchase.saved, 0);
   const totalPrepared = state.reviews.reduce((sum, review) => sum + review.prepared, 0);
@@ -1021,7 +1018,8 @@ export default function Home() {
             </article>
             <aside className="promo-card">
               <span className="promo-badge">PROMOCIÓN VERIFICADA</span><p className="eyebrow">{bestPromotion ? `COMPRÁ EL ${bestPromotion.day.toUpperCase()}` : "SIN COINCIDENCIAS VIGENTES"}</p><h2>{bestPromotion ? `${bestPromotion.discount} con ${bestPromotion.bank}` : "No hay promoción compatible"}</h2>
-              <p>{bestPromotion ? `Con ${bestPromotion.cardType.toLowerCase()} en ${bestPromotion.store}. Tope: ${bestPromotion.cap}.` : `Revisamos todos tus medios guardados sin aplicar beneficios vencidos o incompatibles.`}</p>
+              <p>{bestPromotion ? `Andá a ${bestPromotion.store} el ${bestPromotion.day} para comprar los ${state.shopping.length} productos de la lista. Pagá con ${bestPromotion.cardType.toLowerCase()} de ${bestPromotion.bank}.` : `Revisamos el total de tu lista y todos tus medios guardados sin aplicar beneficios vencidos o incompatibles.`}</p>
+              {bestPromotion && <div className="trip-recommendation"><span>Compra estimada: {money(shoppingTotal)}</span><span>Tope informado: {bestPromotion.cap}</span><strong>Total después del ahorro: {money(Math.max(0, shoppingTotal - estimatedPromoSaving))}</strong></div>}
               <div className="promo-saving"><span>Ahorro estimado</span><strong>{money(estimatedPromoSaving)}</strong></div>
               {shoppingTotal > state.profile.budget && <div className="budget-warning">La lista supera tu presupuesto por {money(shoppingTotal - state.profile.budget)}. Podés quitar productos o generar un plan más económico.</div>}
               {bestPromotion && <><small>Verificada: {bestPromotion.verifiedAt} · {bestPromotion.validThrough ? `Vigente hasta: ${bestPromotion.validThrough}` : "La fuente no publica fecha final; requiere confirmación"}</small>{bestPromotion.notes && <small>{bestPromotion.notes}</small>}<a className="promo-source" href={bestPromotion.sourceUrl} target="_blank" rel="noreferrer">Ver condiciones oficiales ↗</a></>}

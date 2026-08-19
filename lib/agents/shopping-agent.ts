@@ -1,5 +1,5 @@
 import { ingredientPrices } from "./catalog";
-import { promotionSaving, selectBestPromotion } from "../payments";
+import { promotionSaving, selectBestPromotionForPurchase } from "../payments";
 import { addRun, normalize, type WorkingState } from "./types";
 
 export function runShoppingAgent(state: WorkingState): WorkingState {
@@ -17,10 +17,7 @@ export function runShoppingAgent(state: WorkingState): WorkingState {
   const paymentMethods = state.input.profile.paymentMethods?.length
     ? state.input.profile.paymentMethods
     : [{ bank: state.input.profile.paymentBank, cardType: state.input.profile.paymentCardType }];
-  const bestPromotion = paymentMethods
-    .map((payment) => selectBestPromotion(payment, promotions))
-    .filter((promotion): promotion is NonNullable<typeof promotion> => Boolean(promotion))
-    .sort((a, b) => Number.parseInt(b.discount) - Number.parseInt(a.discount))[0];
+  const bestPromotion = selectBestPromotionForPurchase(paymentMethods, promotions, estimatedCost);
   const estimatedSaving = promotionSaving(estimatedCost, bestPromotion);
 
   return addRun({
@@ -35,7 +32,7 @@ export function runShoppingAgent(state: WorkingState): WorkingState {
     role: "Calcula faltantes y cruza medios de pago con descuentos.",
     observation: `${required.length} ingredientes requeridos y ${state.inventoryNames.length} disponibles.`,
     decision: bestPromotion
-      ? `Recomendar ${bestPromotion.day} en ${bestPromotion.store} con ${bestPromotion.discount}, ${bestPromotion.cardType.toLowerCase()} de ${bestPromotion.bank}.`
+      ? `Recomendar comprar los ${shopping.length} productos el ${bestPromotion.day} en ${bestPromotion.store}: ahorro estimado $${estimatedSaving.toLocaleString("es-AR")} con ${bestPromotion.cardType.toLowerCase()} de ${bestPromotion.bank}.`
       : `No hay promociones vigentes compatibles con los ${paymentMethods.length} medios de pago seleccionados.`,
     output: `${shopping.length} productos faltantes; compra estimada $${estimatedCost.toLocaleString("es-AR")}; ahorro $${Math.round(estimatedSaving || 0).toLocaleString("es-AR")}.`,
   });

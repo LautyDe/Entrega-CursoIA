@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   migrateLegacyPayment,
   promotionSaving,
+  selectBestPromotionForPurchase,
   selectBestPromotion,
 } from "../lib/payments.ts";
 import { parseStoredState, serializeStoredState } from "../lib/persistence.ts";
@@ -40,6 +41,21 @@ test("respeta el tope de reintegro", () => {
   assert.equal(promotionSaving(20_000, promotions[1]), 3_000);
   assert.equal(promotionSaving(10_000, promotions[0]), 2_000);
   assert.equal(promotionSaving(10_000), 0);
+});
+
+test("recomienda supermercado y día por ahorro real sobre la lista", () => {
+  const recommendation = selectBestPromotionForPurchase(
+    [{ bank: "Banco Ciudad", cardType: "Débito" }],
+    [
+      { day: "Lunes", store: "Super A", bank: "Banco Ciudad", cardType: "Débito", discount: "40%", cap: "$1.000" },
+      { day: "Miércoles", store: "Super B", bank: "Banco Ciudad", cardType: "Débito", discount: "20%", cap: "$8.000" },
+    ],
+    20_000,
+  );
+
+  assert.equal(recommendation?.store, "Super B");
+  assert.equal(recommendation?.day, "Miércoles");
+  assert.equal(promotionSaving(20_000, recommendation), 4_000);
 });
 
 test("migra el medio de pago anterior separado por punto medio", () => {
