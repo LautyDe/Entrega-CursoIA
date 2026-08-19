@@ -58,6 +58,13 @@ export function createAuth(requestUrl: string) {
         requireEmailVerification: true,
       },
     } : undefined,
+    account: {
+      accountLinking: {
+        enabled: true,
+        trustedProviders: ["google"],
+        allowDifferentEmails: false,
+      },
+    },
     session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
     advanced: { database: { generateId: () => crypto.randomUUID() } },
   });
