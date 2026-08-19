@@ -63,6 +63,7 @@ export function createAuth(requestUrl: string) {
         enabled: true,
         trustedProviders: ["google"],
         allowDifferentEmails: false,
+        requireLocalEmailVerified: false,
       },
     },
     session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
