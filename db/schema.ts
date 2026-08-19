@@ -54,3 +54,14 @@ export const userStates = sqliteTable("user_states", {
   stateJson: text("state_json").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
+
+export const communityCalendars = sqliteTable("community_calendars", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  creator: text("creator").notNull(),
+  title: text("title").notNull(),
+  category: text("category").notNull(),
+  description: text("description").notNull(),
+  weekJson: text("week_json").notNull(),
+  createdAt: integer("created_at").notNull(),
+});

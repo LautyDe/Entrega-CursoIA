@@ -4,6 +4,11 @@ export function runMemoryAgent(state: WorkingState): WorkingState {
   const feedback = (state.input.priorFeedback ?? []).map(normalize);
   const signals: string[] = [];
   const tags: string[] = [];
+  const categoryTags: Record<string, string[]> = {
+    "Fit / proteico": ["proteico"], Delicioso: ["sabroso"], Económico: ["economico"],
+    Rápido: ["rapido"], "Una sola olla": ["una-olla"],
+  };
+  tags.push(...(categoryTags[state.input.planCategory ?? ""] ?? []));
 
   if (feedback.some((item) => item.includes("falto tiempo"))) {
     signals.push("priorizar recetas cortas");

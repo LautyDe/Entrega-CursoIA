@@ -23,7 +23,10 @@ function score(recipe: RecipeDefinition, state: WorkingState) {
   const likedBonus = likedTerms.filter((term) => recipeText.includes(term)).length * 3;
   const quickBonus = state.memorySignals.includes("priorizar recetas cortas") && recipe.minutes <= 25 ? 4 : 0;
   const budgetBonus = recipe.estimatedCost <= state.input.profile.budget / 14 ? 2 : 0;
-  return urgentMatches * 8 + preferredMatches * 3 + likedBonus + quickBonus + budgetBonus - recipe.estimatedCost / 2000;
+  const category = state.input.planCategory ?? "Equilibrado";
+  const proteinBonus = category === "Fit / proteico" && recipe.ingredients.some((item) => ["pollo", "pescado", "huevos", "lentejas", "yogur", "queso", "quinoa"].includes(normalize(item))) ? 8 : 0;
+  const deliciousBonus = category === "Delicioso" && recipe.estimatedCost >= 1900 ? 4 : 0;
+  return urgentMatches * 8 + preferredMatches * 3 + likedBonus + quickBonus + budgetBonus + proteinBonus + deliciousBonus - recipe.estimatedCost / 2000;
 }
 
 export function runPlanningAgent(state: WorkingState): WorkingState {

@@ -40,7 +40,9 @@ type CommunityCalendar = {
   saves: number; tag: string; accent: string; description: string;
   favorite: boolean; followed: boolean; comments: CommunityComment[];
   reported?: boolean; own?: boolean; moderation?: string;
+  category?: string; week?: Meal[]; createdAt?: number;
 };
+type PlanCategory = "Equilibrado" | "Fit / proteico" | "Vegano" | "Vegetariano" | "Sin gluten" | "Delicioso" | "Económico" | "Rápido" | "Una sola olla";
 type MemoryRecord = { id: number; text: string; kind: string; createdAt: string };
 type PurchaseRecord = {
   id: number; date: string; spent: number; saved: number; store: string; discount: string;
@@ -83,7 +85,7 @@ type PlanResponse = {
 };
 type ModalName =
   | "plan" | "recipe" | "feedback" | "notice" | "agents" | "community"
-  | "publish" | "scan" | "inventory-edit" | "meal-edit" | "missed" | "memory-edit" | "cooked";
+  | "publish" | "scan" | "inventory-edit" | "meal-edit" | "missed" | "memory-edit" | "cooked" | "plan-options";
 
 type ConsumptionDraft = {
   id: number;
@@ -160,10 +162,17 @@ function cleanStateForProfile(profile: Profile): AppState {
   };
 }
 
-const initialCommunity: CommunityCalendar[] = [
-  { id: "sofi", creator: "Cocina con Sofi", title: "Semana rica por menos", rating: 4.9, ratings: 384, saves: 2400, tag: "Económico", accent: "tomato", description: "Siete días de platos rendidores, simples y con ingredientes fáciles de conseguir.", favorite: false, followed: false, comments: [{ id: 1, author: "Mica", text: "Gasté menos y no pedí delivery." }, { id: 2, author: "Juan", text: "Muy fácil de adaptar." }] },
-  { id: "fede", creator: "Fede en 20'", title: "Todo listo en 20 minutos", rating: 4.8, ratings: 271, saves: 1800, tag: "Rápido", accent: "green", description: "Comidas cortas para semanas con poco tiempo y pocas ganas de lavar.", favorite: true, followed: true, comments: [{ id: 3, author: "Vale", text: "Ideal para volver tarde del trabajo." }] },
-  { id: "una-olla", creator: "Una olla", title: "Una sola olla, cero estrés", rating: 4.7, ratings: 196, saves: 980, tag: "Principiante", accent: "gold", description: "Recetas guiadas, sin técnicas difíciles y usando un solo recipiente.", favorite: false, followed: false, comments: [{ id: 4, author: "Lucas", text: "Aprendí a cocinar con este calendario." }] },
+const initialCommunity: CommunityCalendar[] = [];
+const planCategories: Array<{ id: PlanCategory; description: string }> = [
+  { id: "Equilibrado", description: "Variedad, presupuesto y nutrición general." },
+  { id: "Fit / proteico", description: "Prioriza fuentes de proteína para acompañar actividad física." },
+  { id: "Vegano", description: "Sin ingredientes de origen animal." },
+  { id: "Vegetariano", description: "Sin carnes ni pescado." },
+  { id: "Sin gluten", description: "Excluye ingredientes con gluten del catálogo." },
+  { id: "Delicioso", description: "Prioriza sabor y variedad por sobre optimización nutricional." },
+  { id: "Económico", description: "Favorece recetas de menor costo." },
+  { id: "Rápido", description: "Favorece preparaciones cortas." },
+  { id: "Una sola olla", description: "Reduce utensilios y limpieza." },
 ];
 
 const promotions = verifiedPromotions.flatMap((promotion) => promotion.banks.flatMap((bank) =>
@@ -362,6 +371,10 @@ export default function Home() {
   const [selectedCommunityId, setSelectedCommunityId] = useState("sofi");
   const [communityComment, setCommunityComment] = useState("");
   const [publishTitle, setPublishTitle] = useState("Mi semana organizada");
+  const [publishCategory, setPublishCategory] = useState<PlanCategory>("Equilibrado");
+  const [selectedPlanCategory, setSelectedPlanCategory] = useState<PlanCategory>("Equilibrado");
+  const [pendingCommunitySource, setPendingCommunitySource] = useState<string | undefined>();
+  const [publishingCalendar, setPublishingCalendar] = useState(false);
   const [pendingRepublish, setPendingRepublish] = useState(false);
   const [selectedMealContext, setSelectedMealContext] = useState<{ dayId: string; slot: MealSlot }>({ dayId: "lun", slot: "lunch" });
   const [mealReplacement, setMealReplacement] = useState("");
@@ -394,6 +407,23 @@ export default function Home() {
       return () => window.clearTimeout(timer);
     }
   }, []);
+
+  useEffect(() => {
+    if (authStatus !== "authenticated") return;
+    fetch("/api/community-calendars", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then((data: { calendars: Array<{ id: string; creator: string; title: string; category: string; description: string; week: Meal[]; createdAt: number }> }) => {
+        setState((current) => ({ ...current, community: data.calendars.map((calendar, index) => ({
+          ...calendar, rating: 0, ratings: 0, saves: 0, tag: calendar.category,
+          accent: ["tomato", "green", "gold"][index % 3], favorite: false, followed: false,
+          comments: [], moderation: "Publicado por un usuario registrado y revisado automáticamente.",
+        })) }));
+      })
+      .catch(() => {
+        setToast("No pudimos cargar los calendarios de la comunidad.");
+        window.setTimeout(() => setToast(""), 2800);
+      });
+  }, [authStatus]);
 
   useEffect(() => {
     let cancelled = false;
@@ -645,8 +675,7 @@ export default function Home() {
     if (calendar.reported) return false;
     if (communityFilter === "Guardados") return calendar.favorite;
     if (communityFilter === "Seguidos") return calendar.followed;
-    if (communityFilter === "Económicos") return calendar.tag === "Económico";
-    if (communityFilter === "Principiantes") return calendar.tag === "Principiante";
+    if (!["Para vos", "Más populares"].includes(communityFilter)) return calendar.category === communityFilter;
     return true;
   }).sort((a, b) => communityFilter === "Más populares" ? b.saves - a.saves : b.rating - a.rating);
 
@@ -730,7 +759,13 @@ export default function Home() {
     notify("Comida cocinada e inventario actualizado");
   };
 
-  const generatePlan = async (preferredCommunityCalendar?: string, republish = false) => {
+  const askPlanCategory = (preferredCommunityCalendar?: string, republish = false) => {
+    setPendingCommunitySource(preferredCommunityCalendar);
+    setPendingRepublish(republish);
+    setModal("plan-options");
+  };
+
+  const generatePlan = async (preferredCommunityCalendar?: string, republish = false, category: PlanCategory = selectedPlanCategory) => {
     setPlanning(true);
     setPendingPlan(null);
     setPendingRepublish(republish);
@@ -747,6 +782,7 @@ export default function Home() {
           promotions,
           requestedMeals: state.profile.plannedMeals,
           preferredCommunityCalendar,
+          planCategory: category,
           refreshPublicBenefits: true,
         }),
       });
@@ -762,23 +798,34 @@ export default function Home() {
     }
   };
 
-  const publishCalendar = (base: AppState, title = publishTitle) => {
-    const id = `own-${Date.now()}`;
-    return {
-      ...base,
-      community: [{
-        id, creator: base.profile.name, title, rating: 5, ratings: 1, saves: 0,
-        tag: "Publicado por vos", accent: "tomato",
-        description: `Calendario con ${base.profile.plannedMeals.length * 7} comidas, adaptado al presupuesto y al inventario.`,
-        favorite: true, followed: true, comments: [], own: true,
-        moderation: "Aprobado por revisión automática de seguridad.",
-      }, ...base.community],
-    };
+  const publishCurrentCalendar = async (event: FormEvent) => {
+    event.preventDefault();
+    setPublishingCalendar(true);
+    try {
+      const response = await fetch("/api/community-calendars", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: publishTitle, category: publishCategory,
+          description: `Calendario con ${state.profile.plannedMeals.length * 7} comidas, compartido por ${state.profile.name}.`,
+          week: state.week,
+        }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "No pudimos publicar el calendario.");
+      const list = await fetch("/api/community-calendars", { cache: "no-store" }).then((value) => value.json()) as { calendars: Array<{ id: string; creator: string; title: string; category: string; description: string; week: Meal[]; createdAt: number }> };
+      setState({ ...state, community: list.calendars.map((calendar, index) => ({ ...calendar, rating: 0, ratings: 0, saves: 0, tag: calendar.category, accent: ["tomato", "green", "gold"][index % 3], favorite: false, followed: false, comments: [], moderation: "Publicado por un usuario registrado y revisado automáticamente." })) });
+      setModal(null);
+      notify("Calendario publicado en la comunidad");
+    } catch (cause) {
+      notify(cause instanceof Error ? cause.message : "No pudimos publicar el calendario.");
+    } finally {
+      setPublishingCalendar(false);
+    }
   };
 
   const confirmPlan = () => {
     if (!pendingPlan) return;
-    let next: AppState = {
+    const next: AppState = {
       ...state,
       week: pendingPlan.week,
       shopping: pendingPlan.shopping.map((item, index) => ({ ...item, id: Date.now() + index })),
@@ -791,10 +838,16 @@ export default function Home() {
         createdAt: "Hoy",
       }],
     };
-    if (pendingRepublish) next = publishCalendar(next, `${pendingPlan.communitySource} · adaptado por ${state.profile.name}`);
     persist(next);
-    setModal(null);
-    notify(pendingRepublish ? "Calendario adaptado, confirmado y republicado" : "Calendario confirmado y lista actualizada");
+    if (pendingRepublish) {
+      setPublishTitle(`${pendingPlan.communitySource} · adaptado por ${state.profile.name}`);
+      setPublishCategory(selectedPlanCategory);
+      setModal("publish");
+      notify("Calendario adaptado. Revisá y confirmá su publicación.");
+    } else {
+      setModal(null);
+      notify("Calendario confirmado y lista actualizada");
+    }
   };
 
   const saveCalendar = (id: string) => {
@@ -1079,7 +1132,7 @@ export default function Home() {
                 <div><p className="eyebrow">PLANIFICACIÓN</p><h2 id="calendar-title">Calendario semanal</h2><small className="section-helper">{slotDefinitions.filter((slot) => state.profile.plannedMeals.includes(slot.id)).map((slot) => slot.label).join(" · ")}</small></div>
                 <div className="panel-actions">
                   <button className="secondary-button" onClick={() => setActiveTab("explore")} type="button">Explorar calendarios</button>
-                  <button className="primary-button" onClick={() => generatePlan()} type="button">✦ Generar con agentes</button>
+                  <button className="primary-button" onClick={() => askPlanCategory()} type="button">✦ Generar con agentes</button>
                 </div>
               </div>
               <div className="week-strip" role="tablist" aria-label="Días de la semana">
@@ -1134,7 +1187,7 @@ export default function Home() {
           <section className="content-panel">
             <div className="community-toolbar">
               <div className="filter-row">
-                {["Para vos", "Más populares", "Guardados", "Seguidos", "Económicos", "Principiantes"].map((filter) => (
+                {["Para vos", "Más populares", "Guardados", "Fit / proteico", "Vegano", "Vegetariano", "Sin gluten", "Delicioso", "Económico", "Rápido"].map((filter) => (
                   <button className={communityFilter === filter ? "chip active" : "chip"} type="button" key={filter} onClick={() => setCommunityFilter(filter)}>{filter}</button>
                 ))}
               </div>
@@ -1144,21 +1197,21 @@ export default function Home() {
               {visibleCommunity.map((calendar) => (
                 <article className={`community-card ${calendar.accent}`} key={calendar.id}>
                   <button className="cover-button" type="button" onClick={() => { setSelectedCommunityId(calendar.id); setModal("community"); }}>
-                    <div className="calendar-cover"><span>{calendar.tag}</span><strong>7 días<br />{state.profile.plannedMeals.length * 7} comidas</strong></div>
+                    <div className="calendar-cover"><span>{calendar.tag}</span><strong>7 días<br />{calendar.week?.reduce((total, day) => total + [day.breakfast, day.lunch, day.snack, day.dinner].filter(Boolean).length, 0) ?? 0} comidas</strong></div>
                   </button>
                   <div className="community-body">
                     <div className="creator-row"><small>{calendar.creator}</small><button type="button" onClick={() => followCreator(calendar.creator)}>{calendar.followed ? "Siguiendo" : "Seguir"}</button></div>
                     <h2>{calendar.title}</h2>
-                    <p>★ {calendar.rating.toFixed(1)} · {calendar.saves.toLocaleString("es-AR")} guardados</p>
+                    <p>{calendar.ratings ? `★ ${calendar.rating.toFixed(1)} · ${calendar.saves.toLocaleString("es-AR")} guardados` : "Calendario publicado por un usuario real"}</p>
                     {calendar.moderation && <small className="moderation">✓ {calendar.moderation}</small>}
                     <div className="card-actions">
                       <button className={calendar.favorite ? "secondary-button saved" : "secondary-button"} onClick={() => saveCalendar(calendar.id)} type="button">{calendar.favorite ? "♥ Guardado" : "♡ Guardar"}</button>
-                      <button className="primary-button" onClick={() => generatePlan(calendar.title)} type="button">Descargar y adaptar</button>
+                      <button className="primary-button" onClick={() => askPlanCategory(calendar.title)} type="button">Descargar y adaptar</button>
                     </div>
                   </div>
                 </article>
               ))}
-              {!visibleCommunity.length && <div className="empty-state"><strong>No hay calendarios en este filtro</strong><span>Guardá o seguí creadores para encontrarlos acá.</span></div>}
+              {!visibleCommunity.length && <div className="empty-state"><strong>Todavía no hay calendarios reales en esta categoría</strong><span>Cuando un usuario publique uno, aparecerá acá.</span></div>}
             </div>
             <div className="social-note"><strong>Comunidad funcional de demostración</strong><span>Podés publicar, guardar, seguir, comentar, puntuar, reportar y adaptar. Los datos quedan guardados en este dispositivo.</span></div>
           </section>
@@ -1348,6 +1401,13 @@ export default function Home() {
                 </>
             )}
 
+            {modal === "plan-options" && <form onSubmit={(event) => { event.preventDefault(); void generatePlan(pendingCommunitySource, pendingRepublish, selectedPlanCategory); }}>
+              <p className="eyebrow">ESTILO DEL CALENDARIO</p><h2>¿Qué tipo de semana querés generar?</h2>
+              <p>La categoría orienta las recetas, pero alergias, alimentos vencidos y restricciones siempre tienen prioridad.</p>
+              <div className="category-grid">{planCategories.map((category) => <label className={selectedPlanCategory === category.id ? "category-option selected" : "category-option"} key={category.id}><input type="radio" name="plan-category" value={category.id} checked={selectedPlanCategory === category.id} onChange={() => setSelectedPlanCategory(category.id)} /><strong>{category.id}</strong><small>{category.description}</small></label>)}</div>
+              <div className="modal-actions"><button className="secondary-button" type="button" onClick={() => setModal(null)}>Cancelar</button><button className="primary-button" type="submit">Generar calendario</button></div>
+            </form>}
+
             {modal === "recipe" && <>
               <p className="eyebrow">{currentSlotDefinition.label.toUpperCase()} · {state.week.find((day) => day.id === selectedMealContext.dayId)?.day.toUpperCase()}</p>
               <h2>{selectedRecipeName || "Espacio libre"}</h2>
@@ -1405,10 +1465,10 @@ export default function Home() {
               <div className="rating-row"><span>Tu puntuación:</span>{[1, 2, 3, 4, 5].map((rating) => <button type="button" key={rating} onClick={() => rateCalendar(rating)}>★</button>)}</div>
               <div className="comment-list">{selectedCommunity.comments.map((comment) => <div key={comment.id}><strong>{comment.author}</strong><p>{comment.text}</p></div>)}</div>
               <form className="comment-form" onSubmit={submitComment}><input value={communityComment} onChange={(event) => setCommunityComment(event.target.value)} placeholder="Escribí un comentario" aria-label="Comentario" /><button className="secondary-button" type="submit">Comentar</button></form>
-              <div className="modal-actions split"><button className="report-button" type="button" onClick={reportCalendar}>Reportar contenido</button><div><button className="secondary-button" type="button" onClick={() => saveCalendar(selectedCommunity.id)}>{selectedCommunity.favorite ? "Quitar favorito" : "Guardar"}</button><button className="primary-button" type="button" onClick={() => generatePlan(selectedCommunity.title, true)}>Adaptar y republicar</button></div></div>
+              <div className="modal-actions split"><button className="report-button" type="button" onClick={reportCalendar}>Reportar contenido</button><div><button className="secondary-button" type="button" onClick={() => saveCalendar(selectedCommunity.id)}>{selectedCommunity.favorite ? "Quitar favorito" : "Guardar"}</button><button className="primary-button" type="button" onClick={() => askPlanCategory(selectedCommunity.title, true)}>Adaptar y republicar</button></div></div>
             </>}
 
-            {modal === "publish" && <form onSubmit={(event) => { event.preventDefault(); persist(publishCalendar(state)); setModal(null); notify("Calendario publicado tras la revisión automática"); }}><p className="eyebrow">PUBLICAR EN LA COMUNIDAD</p><h2>Compartí tu semana</h2><p>Antes de publicarse, el agente evaluador revisa restricciones, vencimientos y contenido.</p><label>Título del calendario<input value={publishTitle} onChange={(event) => setPublishTitle(event.target.value)} required /></label><div className="publish-checks"><span>✓ Sin alimentos vencidos</span><span>✓ Compatible con tu perfil</span><span>✓ {state.profile.plannedMeals.length * 7} comidas incluidas</span></div><div className="modal-actions"><button className="secondary-button" type="button" onClick={() => setModal(null)}>Cancelar</button><button className="primary-button" type="submit">Revisar y publicar</button></div></form>}
+            {modal === "publish" && <form onSubmit={publishCurrentCalendar}><p className="eyebrow">PUBLICAR EN LA COMUNIDAD</p><h2>Compartí tu semana real</h2><p>Se guardará en la comunidad para que otros usuarios puedan encontrarla y adaptarla. No se publica tu inventario, presupuesto, alergias ni correo.</p><label>Título del calendario<input maxLength={80} value={publishTitle} onChange={(event) => setPublishTitle(event.target.value)} required /></label><label>Categoría<select value={publishCategory} onChange={(event) => setPublishCategory(event.target.value as PlanCategory)}>{planCategories.map((category) => <option key={category.id}>{category.id}</option>)}</select></label><div className="publish-checks"><span>✓ Revisión de alergias y rechazos</span><span>✓ Solo se comparten comidas y nombre público</span><span>✓ {state.profile.plannedMeals.length * 7} comidas incluidas</span></div><div className="modal-actions"><button className="secondary-button" type="button" onClick={() => setModal(null)}>Cancelar</button><button className="primary-button" disabled={publishingCalendar} type="submit">{publishingCalendar ? "Publicando…" : "Revisar y publicar"}</button></div></form>}
 
             {modal === "scan" && <><p className="eyebrow">RECONOCIMIENTO DE {scanMode.toUpperCase()}</p><h2>Confirmá los productos</h2><p>El reconocimiento es de demostración y nunca agrega productos sin tu confirmación.</p><div className="scan-list">{scanCandidates.map((item) => <div key={item.id}><strong>{item.name}</strong><span>{item.amount}</span><b>{money(item.price)}</b></div>)}</div><div className="modal-actions"><button className="secondary-button" type="button" onClick={() => setModal(null)}>Cancelar</button><button className="primary-button" type="button" onClick={confirmScan}>Agregar {scanCandidates.length} productos</button></div></>}
 

@@ -45,6 +45,7 @@ export type PlanRequest = {
   promotions?: PromotionInput[];
   requestedMeals?: string[];
   preferredCommunityCalendar?: string;
+  planCategory?: "Equilibrado" | "Fit / proteico" | "Vegano" | "Vegetariano" | "Sin gluten" | "Delicioso" | "Económico" | "Rápido" | "Una sola olla";
   refreshPublicBenefits?: boolean;
 };
 

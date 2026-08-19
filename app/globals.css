@@ -1578,10 +1578,17 @@ textarea {
 .consumption-row select, .consumption-row input { background: white; border: 1px solid var(--line); border-radius: 9px; font: inherit; min-width: 0; padding: 10px; }
 .consumption-row .delete-button { margin-bottom: 7px; }
 .primary-button:disabled, .secondary-button:disabled { cursor: not-allowed; opacity: .55; }
+.category-grid { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 20px 0; }
+.category-option { background: var(--cream-soft); border: 1px solid var(--line); border-radius: 14px; cursor: pointer; display: grid; gap: 6px; padding: 14px; }
+.category-option.selected { background: #eef7ef; border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); }
+.category-option input { position: absolute; opacity: 0; pointer-events: none; }
+.category-option strong { color: var(--burgundy); font-size: 13px; }
+.category-option small { color: var(--muted); line-height: 1.4; }
 
 @media (max-width: 700px) {
   .consumption-row { align-items: stretch; grid-template-columns: 1fr; }
   .consumption-row .delete-button { justify-self: end; margin: 0; }
+  .category-grid { grid-template-columns: 1fr; }
 }
 
 .modal-close {

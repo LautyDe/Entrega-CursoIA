@@ -61,6 +61,13 @@ export function ensureUserSchema() {
         id TEXT PRIMARY KEY NOT NULL, identifier TEXT NOT NULL, value TEXT NOT NULL,
         expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
       )`),
+      d1.prepare(`CREATE TABLE IF NOT EXISTS community_calendars (
+        id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL, creator TEXT NOT NULL,
+        title TEXT NOT NULL, category TEXT NOT NULL, description TEXT NOT NULL,
+        week_json TEXT NOT NULL, created_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE cascade
+      )`),
+      d1.prepare("CREATE INDEX IF NOT EXISTS community_calendars_created_idx ON community_calendars(created_at DESC)"),
       d1.prepare("CREATE UNIQUE INDEX IF NOT EXISTS account_provider_account_idx ON account(provider_id, account_id)"),
       d1.prepare("CREATE INDEX IF NOT EXISTS session_user_id_idx ON session(user_id)"),
       d1.prepare("CREATE INDEX IF NOT EXISTS account_user_id_idx ON account(user_id)"),

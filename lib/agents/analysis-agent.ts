@@ -15,6 +15,10 @@ export function runAnalysisAgent(state: WorkingState): WorkingState {
   ];
   const availableAppliances = terms(state.input.profile.appliances);
   const beginner = normalize(state.input.profile.level).includes("princip");
+  const category = state.input.planCategory ?? "Equilibrado";
+  const animalIngredients = ["pollo", "pescado", "huevos", "queso", "leche", "yogur"];
+  const meatIngredients = ["pollo", "pescado"];
+  const glutenIngredients = ["pan integral", "pasta seca", "tortillas", "harina integral", "avena"];
 
   const candidates = recipeCatalog.filter((recipe) => {
     const recipeText = normalize(`${recipe.name} ${recipe.ingredients.join(" ")}`);
@@ -23,7 +27,12 @@ export function runAnalysisAgent(state: WorkingState): WorkingState {
       availableAppliances.some((owned) => owned.includes(required)),
     );
     const levelOk = !beginner || recipe.difficulty === "Fácil";
-    return safe && equipmentOk && levelOk;
+    const ingredients = recipe.ingredients.map(normalize);
+    const categoryOk = category === "Vegano" ? !ingredients.some((item) => animalIngredients.includes(item))
+      : category === "Vegetariano" ? !ingredients.some((item) => meatIngredients.includes(item))
+        : category === "Sin gluten" ? !ingredients.some((item) => glutenIngredients.includes(item))
+          : true;
+    return safe && equipmentOk && levelOk && categoryOk;
   });
 
   return addRun({

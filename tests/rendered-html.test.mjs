@@ -149,3 +149,23 @@ test("does not apply an incompatible payment promotion", async () => {
   assert.equal(plan.estimatedSaving, 0);
   assert.match(plan.agentRun.find((run) => run.id === "shopping").decision, /No hay promociones vigentes compatibles/);
 });
+
+test("applies category constraints without overriding allergies", async () => {
+  const worker = await loadWorker();
+  const response = await worker.fetch(new Request("http://localhost/api/plan", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      profile: {
+        budget: 50000, level: "Intermedio", likes: "Verduras", dislikes: "Ninguna",
+        allergies: "zapallo", appliances: "Horno, anafe, microondas y licuadora",
+        paymentBank: "Banco Galicia", paymentCardType: "Débito",
+      },
+      inventory: [], requestedMeals: ["lunch", "dinner"], planCategory: "Vegano",
+    }),
+  }), env, ctx);
+  assert.equal(response.status, 200);
+  const plan = await response.json();
+  const meals = plan.week.flatMap((day) => [day.lunch, day.dinner]).join(" ").toLowerCase();
+  assert.doesNotMatch(meals, /pollo|pescado|huevo|queso|yogur|zapallo/);
+});
