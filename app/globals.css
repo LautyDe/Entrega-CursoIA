@@ -2774,3 +2774,31 @@ textarea {
 .auth-divider::before, .auth-divider::after { background: var(--line); content: ""; flex: 1; height: 1px; }
 .auth-links { display: flex; gap: 14px; justify-content: center; }
 .auth-links button { background: transparent; border: 0; color: var(--burgundy); cursor: pointer; font: inherit; font-size: 12px; font-weight: 800; }
+
+.onboarding-screen { background: radial-gradient(circle at top left, var(--burgundy-soft), var(--cream) 48%); min-height: 100vh; padding: clamp(18px, 4vw, 48px); }
+.onboarding-card { background: var(--white); border: 1px solid var(--line); border-radius: 28px; box-shadow: 0 24px 70px rgba(55, 38, 31, .14); display: grid; gap: 28px; margin: 0 auto; max-width: 1040px; padding: clamp(24px, 5vw, 48px); }
+.onboarding-heading { align-items: flex-start; display: flex; gap: 18px; }
+.onboarding-heading .brand-mark { flex: 0 0 auto; }
+.onboarding-heading h1, .onboarding-heading p { margin: 0; }
+.onboarding-heading h1 { margin: 5px 0 8px; }
+.onboarding-heading > div > p:last-child { color: var(--muted); line-height: 1.55; }
+.onboarding-grid { display: grid; gap: 18px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.onboarding-grid > label { display: grid; font-size: 12px; font-weight: 800; gap: 7px; }
+.onboarding-grid input:not([type="checkbox"]), .onboarding-grid select { background: white; border: 1px solid var(--line); border-radius: 11px; font: inherit; min-width: 0; padding: 12px; }
+.onboarding-grid label small { color: var(--muted); font-weight: 500; }
+.onboarding-payment { min-width: 0; }
+.onboarding-meals { border: 1px solid var(--line); border-radius: 14px; display: flex; gap: 16px; grid-column: 1 / -1; padding: 16px; }
+.onboarding-meals legend { font-size: 12px; font-weight: 900; padding: 0 6px; }
+.onboarding-meals label { align-items: center; display: flex; font-size: 12px; font-weight: 700; gap: 7px; }
+.onboarding-nutrition { grid-column: 1 / -1; }
+.onboarding-error { background: #fff0ed; border: 1px solid #e3a59a; border-radius: 12px; color: #8a2417; padding: 12px 14px; }
+.onboarding-actions { align-items: center; border-top: 1px solid var(--line); display: flex; gap: 20px; justify-content: space-between; padding-top: 22px; }
+.onboarding-actions small { color: var(--muted); line-height: 1.5; }
+
+@media (max-width: 700px) {
+  .onboarding-grid { grid-template-columns: 1fr; }
+  .onboarding-heading { align-items: center; }
+  .onboarding-meals { display: grid; grid-column: auto; grid-template-columns: 1fr 1fr; }
+  .onboarding-nutrition { grid-column: auto; }
+  .onboarding-actions { align-items: stretch; flex-direction: column; }
+}

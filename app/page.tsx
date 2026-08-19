@@ -25,6 +25,7 @@ type Ingredient = {
 };
 type ShoppingItem = { id: number; name: string; amount: string; price: number; checked: boolean };
 type Profile = {
+  onboardingCompleted: boolean;
   name: string; budget: number; level: string; dislikes: string;
   likes: string;
   allergies: string; appliances: string; paymentBank: string; paymentCardType: CardType;
@@ -117,6 +118,7 @@ const initialShopping: ShoppingItem[] = [
 ];
 
 const defaultProfile: Profile = {
+  onboardingCompleted: false,
   name: "Lucía Díaz", budget: 35000, level: "Principiante", dislikes: "Aceitunas",
   likes: "Lentejas, pasta y verduras",
   allergies: "Ninguna", appliances: "Horno, anafe, microondas y licuadora",
@@ -124,6 +126,30 @@ const defaultProfile: Profile = {
   paymentMethods: [{ bank: "Banco Nación", cardType: "Crédito" }], nutrition: true, city: "Ciudad de Buenos Aires",
   planningDay: "Domingo", plannedMeals: ["lunch", "dinner"],
 };
+
+function emptyWeek(): Meal[] {
+  return initialWeek.map((day) => ({
+    ...day,
+    breakfast: "", breakfastMeta: "", lunch: "", lunchMeta: "",
+    snack: "", snackMeta: "", dinner: "", dinnerMeta: "",
+  }));
+}
+
+function cleanStateForProfile(profile: Profile): AppState {
+  return {
+    ...initialState,
+    week: emptyWeek(),
+    inventory: [],
+    shopping: [],
+    profile,
+    savings: 0,
+    feedback: [],
+    recipeGuides: {},
+    memory: [],
+    purchases: [],
+    reviews: [],
+  };
+}
 
 const initialCommunity: CommunityCalendar[] = [
   { id: "sofi", creator: "Cocina con Sofi", title: "Semana rica por menos", rating: 4.9, ratings: 384, saves: 2400, tag: "Económico", accent: "tomato", description: "Siete días de platos rendidores, simples y con ingredientes fáciles de conseguir.", favorite: false, followed: false, comments: [{ id: 1, author: "Mica", text: "Gasté menos y no pedí delivery." }, { id: 2, author: "Juan", text: "Muy fácil de adaptar." }] },
@@ -230,6 +256,82 @@ function MealCard({ slot, value, meta, onOpen }: {
   );
 }
 
+function OnboardingScreen({ user, onComplete }: {
+  user: AuthenticatedUser;
+  onComplete: (profile: Profile) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState({
+    name: user.displayName || "", city: "", budget: "", level: "Principiante",
+    likes: "", dislikes: "", allergies: "", appliances: "",
+    paymentBank: "", paymentCardType: argentinaCardTypes[0],
+    planningDay: "Domingo", plannedMeals: ["lunch", "dinner"] as MealSlot[], nutrition: true,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setError("");
+    const budget = Number(draft.budget);
+    const provider = validatePaymentProvider(draft.paymentBank);
+    if (!draft.name.trim() || !draft.city.trim() || !draft.allergies.trim() || !draft.appliances.trim()) {
+      setError("Completá nombre, ciudad, alergias o restricciones y electrodomésticos.");
+      return;
+    }
+    if (!Number.isFinite(budget) || budget <= 0) {
+      setError("Ingresá un presupuesto semanal mayor que cero.");
+      return;
+    }
+    if (!draft.plannedMeals.length) {
+      setError("Elegí al menos una comida para planificar.");
+      return;
+    }
+    if (provider.status !== "known") {
+      setError(provider.status === "suggestion" ? `¿Quisiste decir ${provider.provider}? Seleccionalo de la lista.` : "Seleccioná un banco, billetera o fintech reconocido de la lista.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onComplete({
+        onboardingCompleted: true,
+        name: draft.name.trim(), city: draft.city.trim(), budget, level: draft.level,
+        likes: draft.likes.trim(), dislikes: draft.dislikes.trim(),
+        allergies: draft.allergies.trim(), appliances: draft.appliances.trim(),
+        paymentBank: provider.provider, paymentCardType: draft.paymentCardType,
+        paymentMethods: [{ bank: provider.provider, cardType: draft.paymentCardType }],
+        planningDay: draft.planningDay, plannedMeals: draft.plannedMeals, nutrition: draft.nutrition,
+      });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No pudimos guardar tus datos. Intentá nuevamente.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return <main className="onboarding-screen">
+    <form className="onboarding-card" onSubmit={submit}>
+      <div className="onboarding-heading"><span className="brand-mark">M</span><div><p className="eyebrow">CONFIGURACIÓN INICIAL</p><h1>Hagamos MealBoard realmente tuyo</h1><p>Estas respuestas reemplazan los datos de ejemplo y se guardan de forma privada en tu cuenta.</p></div></div>
+      <div className="onboarding-grid">
+        <label>Nombre<input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
+        <label>Ciudad o localidad<input required placeholder="Ej.: Rosario, Santa Fe" value={draft.city} onChange={(event) => setDraft({ ...draft, city: event.target.value })} /></label>
+        <label>Presupuesto semanal<input required min="1" type="number" placeholder="Ej.: 45000" value={draft.budget} onChange={(event) => setDraft({ ...draft, budget: event.target.value })} /></label>
+        <label>Nivel de cocina<select value={draft.level} onChange={(event) => setDraft({ ...draft, level: event.target.value })}><option>Principiante</option><option>Intermedio</option><option>Avanzado</option></select></label>
+        <label>Comidas o ingredientes que te gustan<input placeholder="Ej.: pastas, pollo, verduras" value={draft.likes} onChange={(event) => setDraft({ ...draft, likes: event.target.value })} /></label>
+        <label>Comidas que no te gustan<input placeholder="Escribí Ninguna si no aplica" value={draft.dislikes} onChange={(event) => setDraft({ ...draft, dislikes: event.target.value })} /></label>
+        <label>Alergias y restricciones<input required placeholder="Escribí Ninguna si no tenés" value={draft.allergies} onChange={(event) => setDraft({ ...draft, allergies: event.target.value })} /><small>MealBoard siempre prioriza esta información.</small></label>
+        <label>Electrodomésticos disponibles<input required placeholder="Ej.: anafe, horno y microondas" value={draft.appliances} onChange={(event) => setDraft({ ...draft, appliances: event.target.value })} /></label>
+        <label>Día para planificar<select value={draft.planningDay} onChange={(event) => setDraft({ ...draft, planningDay: event.target.value })}>{["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"].map((day) => <option key={day}>{day}</option>)}</select></label>
+        <div className="onboarding-payment"><PaymentProviderCombobox value={draft.paymentBank} onChange={(paymentBank) => setDraft({ ...draft, paymentBank })} /></div>
+        <label>Tipo de medio<select value={draft.paymentCardType} onChange={(event) => setDraft({ ...draft, paymentCardType: event.target.value as CardType })}>{argentinaCardTypes.map((type) => <option key={type}>{type}</option>)}</select></label>
+        <fieldset className="onboarding-meals"><legend>¿Qué comidas querés planificar?</legend>{slotDefinitions.map((slot) => <label key={slot.id}><input type="checkbox" checked={draft.plannedMeals.includes(slot.id)} onChange={(event) => setDraft({ ...draft, plannedMeals: event.target.checked ? [...draft.plannedMeals, slot.id] : draft.plannedMeals.filter((meal) => meal !== slot.id) })} />{slot.label}</label>)}</fieldset>
+        <label className="toggle onboarding-nutrition"><input type="checkbox" checked={draft.nutrition} onChange={(event) => setDraft({ ...draft, nutrition: event.target.checked })} /><span />Incluir recomendaciones nutricionales opcionales</label>
+      </div>
+      {error && <div className="onboarding-error" role="alert">{error}</div>}
+      <div className="onboarding-actions"><small>Luego vas a poder agregar más medios de pago y editar todo desde Mi perfil.</small><button className="primary-button" disabled={saving} type="submit">{saving ? "Guardando…" : "Guardar y empezar"}</button></div>
+    </form>
+  </main>;
+}
+
 export default function Home() {
   const [state, setState] = useState<AppState>(initialState);
   const [authStatus, setAuthStatus] = useState<"loading" | "authenticated" | "anonymous">("loading");
@@ -288,21 +390,19 @@ export default function Home() {
         const account = await accountResponse.json() as { user: AuthenticatedUser };
         const stateResponse = await fetch("/api/user-state", { cache: "no-store" });
         const remote = stateResponse.ok ? await stateResponse.json() as { state: AppState | null } : { state: null };
-        const local = restoredAppState(localStorage.getItem(MEALBOARD_STORAGE_KEY));
         if (cancelled) return;
         setAuthenticatedUser(account.user);
-        setAuthStatus("authenticated");
         if (remote.state) {
           const restoredRemote = restoredAppState(serializeStoredState(remote.state));
           if (restoredRemote) {
             setState(restoredRemote);
             localStorage.setItem(MEALBOARD_STORAGE_KEY, serializeStoredState(restoredRemote));
           }
-        } else if (local) {
-          await fetch("/api/user-state", {
-            method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state: local }),
-          });
+        } else {
+          setState(initialState);
+          localStorage.removeItem(MEALBOARD_STORAGE_KEY);
         }
+        setAuthStatus("authenticated");
       } catch {
         if (!cancelled) setAuthStatus("anonymous");
       }
@@ -326,6 +426,18 @@ export default function Home() {
         method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state: next }),
       }).catch(() => undefined);
     }
+  };
+
+  const completeOnboarding = async (profile: Profile) => {
+    const next = cleanStateForProfile(profile);
+    const response = await fetch("/api/user-state", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: next }),
+    });
+    if (!response.ok) throw new Error("No pudimos guardar el perfil en tu cuenta. Revisá la conexión e intentá nuevamente.");
+    setState(next);
+    localStorage.setItem(MEALBOARD_STORAGE_KEY, serializeStoredState(next));
   };
 
   const notify = (message: string) => {
@@ -810,8 +922,16 @@ export default function Home() {
     profile: ["Mi perfil", "Preferencias, planificación y control de la memoria."],
   };
 
+  if (authStatus === "loading") {
+    return <main className="auth-screen"><div className="auth-card"><span className="brand-mark">M</span><h1>Cargando tu cuenta…</h1></div></main>;
+  }
+
   if (authStatus === "anonymous") {
     return <AuthScreen />;
+  }
+
+  if (authenticatedUser && !state.profile.onboardingCompleted) {
+    return <OnboardingScreen user={authenticatedUser} onComplete={completeOnboarding} />;
   }
 
   return (
@@ -1098,7 +1218,7 @@ export default function Home() {
                   <fieldset className="wide meal-selector"><legend>¿Qué comidas querés planificar?</legend>{slotDefinitions.map((slot) => <label key={slot.id}><input type="checkbox" checked={state.profile.plannedMeals.includes(slot.id)} onChange={(event) => { const plannedMeals = event.target.checked ? [...state.profile.plannedMeals, slot.id] : state.profile.plannedMeals.filter((item) => item !== slot.id); if (plannedMeals.length) setState({ ...state, profile: { ...state.profile, plannedMeals } }); }} />{slot.label}</label>)}</fieldset>
                   <label className="toggle wide"><input type="checkbox" checked={state.profile.nutrition} onChange={(event) => setState({ ...state, profile: { ...state.profile, nutrition: event.target.checked } })} /><span />Incluir recomendaciones nutricionales opcionales</label>
                 </div>
-                <div className="form-actions"><button className="secondary-button" type="button" onClick={() => { localStorage.removeItem(MEALBOARD_STORAGE_KEY); setState(initialState); notify("Datos de demostración restablecidos"); }}>Restablecer demo</button><button className="primary-button" type="submit">Guardar cambios</button></div>
+                <div className="form-actions"><button className="secondary-button" type="button" onClick={() => { persist(cleanStateForProfile(state.profile)); notify("Actividad personal eliminada"); }}>Borrar actividad</button><button className="primary-button" type="submit">Guardar cambios</button></div>
               </form>
               <section className="content-panel memory-panel">
                 <div className="panel-heading"><div><p className="eyebrow">MEMORIA PERSISTENTE</p><h2>Historial y control</h2></div><span className="memory-count">{state.memory.length} datos</span></div>
