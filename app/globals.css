@@ -944,6 +944,21 @@ h2 {
   color: var(--muted);
   font-size: 8px;
 }
+.meal-card .meal-nutrition { color: var(--green); font-size: 8px; font-weight: 800; }
+.nutrition-tracker { align-items: stretch; background: var(--white); border: 1px solid var(--line); border-radius: 18px; display: grid; gap: 14px; grid-template-columns: 1.2fr 1fr 1fr; margin-top: 16px; padding: 18px; }
+.nutrition-tracker > div small { color: var(--muted); line-height: 1.4; }
+.nutrition-tracker h2 { margin: 4px 0; }
+.nutrition-tracker article { background: var(--cream-soft); border-radius: 14px; display: grid; gap: 6px; padding: 14px; }
+.nutrition-tracker article.consumed { background: #eef7ef; }
+.nutrition-tracker article span, .nutrition-tracker article small { color: var(--muted); font-size: 10px; }
+.nutrition-tracker article strong { color: var(--burgundy); font-size: 18px; }
+.recipe-nutrition { background: #eef7ef; border-radius: 14px; display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 14px 0; padding: 14px; }
+.recipe-nutrition strong { color: var(--green); width: 100%; }
+.recipe-nutrition span { font-size: 12px; }
+.calendar-description { color: var(--muted); line-height: 1.45; }
+.audience-note { background: var(--cream-soft); border-left: 3px solid var(--green); border-radius: 8px; display: grid; gap: 4px; margin: 10px 0; padding: 10px; }
+.audience-note strong { color: var(--green); font-size: 11px; text-transform: uppercase; }
+.audience-note span, .audience-note small { color: var(--muted); font-size: 11px; line-height: 1.4; }
 
 .mobile-day-detail {
   display: none;
@@ -1589,6 +1604,7 @@ textarea {
   .consumption-row { align-items: stretch; grid-template-columns: 1fr; }
   .consumption-row .delete-button { justify-self: end; margin: 0; }
   .category-grid { grid-template-columns: 1fr; }
+  .nutrition-tracker { grid-template-columns: 1fr; }
 }
 
 .modal-close {

@@ -20,7 +20,8 @@ export async function POST(request: Request) {
   const body = await request.json() as { title?: string; category?: string; description?: string; week?: unknown[] };
   const title = body.title?.trim();
   const category = body.category?.trim();
-  if (!title || title.length > 80 || !category || !categories.has(category) || !Array.isArray(body.week) || body.week.length !== 7) {
+  const description = body.description?.trim();
+  if (!title || title.length > 80 || !description || description.length > 240 || !category || !categories.has(category) || !Array.isArray(body.week) || body.week.length !== 7) {
     return NextResponse.json({ error: "Calendario inválido" }, { status: 400 });
   }
   const stateRow = await getD1().prepare("SELECT state_json AS stateJson FROM user_states WHERE user_id = ?").bind(user.id).first<{ stateJson: string }>();
@@ -41,6 +42,6 @@ export async function POST(request: Request) {
   const id = crypto.randomUUID();
   const now = Date.now();
   await getD1().prepare(`INSERT INTO community_calendars (id, user_id, creator, title, category, description, week_json, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, user.id, user.name, title, category, (body.description ?? "").slice(0, 240), JSON.stringify(body.week), now).run();
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, user.id, user.name, title, category, description, JSON.stringify(body.week), now).run();
   return NextResponse.json({ id, createdAt: now }, { status: 201 });
 }

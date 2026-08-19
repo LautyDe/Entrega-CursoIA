@@ -7,6 +7,7 @@ import { findNearbySupermarkets, type Coordinates, type NearbyStore } from "../l
 import { migrateLegacyPayment, promotionSaving, selectBestPromotionForPurchase, type CardType, type PaymentMethod } from "../lib/payments";
 import { MEALBOARD_STORAGE_KEY, parseStoredState, serializeStoredState } from "../lib/persistence";
 import { normalizeIngredientName, parseInventoryAmount, recommendedConsumption, subtractInventoryAmount } from "../lib/inventory-consumption";
+import { addNutrition, emptyNutrition, nutritionForMeal, type NutritionEstimate } from "../lib/nutrition";
 import { extractPublicBenefitReferences, publicBenefitMatchesStore } from "../lib/public-benefit-extraction";
 import { StoreMap, type StoreDeal } from "./store-map";
 import { PaymentProviderCombobox } from "./payment-provider-combobox";
@@ -175,6 +176,19 @@ const planCategories: Array<{ id: PlanCategory; description: string }> = [
   { id: "Una sola olla", description: "Reduce utensilios y limpieza." },
 ];
 
+function audienceForCategory(category?: string) {
+  const audiences: Record<string, string> = {
+    "Fit / proteico": "Orientado a personas físicamente activas que buscan comidas con más proteína.",
+    Vegano: "Apto para alimentación vegana según los ingredientes del catálogo.",
+    Vegetariano: "Apto para alimentación vegetariana; excluye carnes y pescado.",
+    "Sin gluten": "Orientado a quienes evitan gluten. En celiaquía, verificá certificación y contaminación cruzada de cada producto.",
+    Delicioso: "Para público general que prioriza sabor y variedad; no optimiza objetivos nutricionales.",
+    Económico: "Para quienes priorizan reducir el costo semanal.", Rápido: "Para personas con poco tiempo para cocinar.",
+    "Una sola olla": "Para quienes buscan cocinar con pocos utensilios.", Equilibrado: "Para público general que busca una semana variada.",
+  };
+  return audiences[category ?? "Equilibrado"] ?? audiences.Equilibrado;
+}
+
 const promotions = verifiedPromotions.flatMap((promotion) => promotion.banks.flatMap((bank) =>
   promotion.cardTypes.map((cardType) => ({
     day: promotion.day,
@@ -266,8 +280,8 @@ function restoredAppState(value: string | null): AppState | null {
   };
 }
 
-function MealCard({ slot, value, meta, cooked, onOpen }: {
-  slot: { id: MealSlot; label: string; icon: string }; value: string; meta: string; cooked: boolean; onOpen: () => void;
+function MealCard({ slot, value, meta, cooked, nutrition, onOpen }: {
+  slot: { id: MealSlot; label: string; icon: string }; value: string; meta: string; cooked: boolean; nutrition: NutritionEstimate | null; onOpen: () => void;
 }) {
   return (
     <button className={cooked ? "meal-card cooked" : "meal-card"} type="button" onClick={onOpen} aria-label={`${slot.label}: ${value}${cooked ? ", cocinada" : ""}`}>
@@ -276,6 +290,7 @@ function MealCard({ slot, value, meta, cooked, onOpen }: {
       <span className="meal-icon" aria-hidden="true">{slot.icon}</span>
       <strong>{value || "Espacio libre"}</strong>
       <small>{meta || "Tocá para completar"}</small>
+      {nutrition && <small className="meal-nutrition">{nutrition.calories} kcal · {nutrition.protein} g proteína</small>}
     </button>
   );
 }
@@ -371,6 +386,7 @@ export default function Home() {
   const [selectedCommunityId, setSelectedCommunityId] = useState("sofi");
   const [communityComment, setCommunityComment] = useState("");
   const [publishTitle, setPublishTitle] = useState("Mi semana organizada");
+  const [publishDescription, setPublishDescription] = useState("Una semana de comidas prácticas, pensada para organizar las compras y cocinar en casa.");
   const [publishCategory, setPublishCategory] = useState<PlanCategory>("Equilibrado");
   const [selectedPlanCategory, setSelectedPlanCategory] = useState<PlanCategory>("Equilibrado");
   const [pendingCommunitySource, setPendingCommunitySource] = useState<string | undefined>();
@@ -558,6 +574,12 @@ export default function Home() {
   const estimatedPromoSaving = promotionSaving(shoppingTotal, bestPromotion);
   const savedFromPurchases = state.purchases.reduce((sum, purchase) => sum + purchase.saved, 0);
   const totalPrepared = state.reviews.reduce((sum, review) => sum + review.prepared, 0);
+  const plannedNutrition = useMemo(() => state.week.reduce((weekTotal, day) => {
+    return state.profile.plannedMeals.reduce((dayTotal, slot) => addNutrition(dayTotal, nutritionForMeal(day[slot]) ?? emptyNutrition()), weekTotal);
+  }, emptyNutrition()), [state.profile.plannedMeals, state.week]);
+  const consumedNutrition = useMemo(() => state.week.reduce((weekTotal, day) => {
+    return (day.cookedSlots ?? []).reduce((dayTotal, slot) => addNutrition(dayTotal, nutritionForMeal(day[slot]) ?? emptyNutrition()), weekTotal);
+  }, emptyNutrition()), [state.week]);
 
   const refreshPublicBenefits = async (silent = false) => {
     setDiscoveringBenefits(true);
@@ -681,6 +703,7 @@ export default function Home() {
 
   const selectedRecipeName = state.week.find((day) => day.id === selectedMealContext.dayId)?.[selectedMealContext.slot] ?? "";
   const selectedRecipe = recipeCatalog.find((recipe) => recipe.name === selectedRecipeName);
+  const selectedNutrition = nutritionForMeal(selectedRecipeName);
   const currentSlotDefinition = slotDefinitions.find((slot) => slot.id === selectedMealContext.slot) ?? slotDefinitions[1];
   const selectedMealDay = state.week.find((day) => day.id === selectedMealContext.dayId);
   const selectedMealCooked = selectedMealDay?.cookedSlots?.includes(selectedMealContext.slot) ?? false;
@@ -806,7 +829,7 @@ export default function Home() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: publishTitle, category: publishCategory,
-          description: `Calendario con ${state.profile.plannedMeals.length * 7} comidas, compartido por ${state.profile.name}.`,
+          description: publishDescription.trim(),
           week: state.week,
         }),
       });
@@ -1147,7 +1170,7 @@ export default function Home() {
               <div className={`mobile-day-detail slots-${state.profile.plannedMeals.length}`}>
                 <div className="day-title"><span>{selectedMeal.day}</span><small>{selectedMeal.date} de julio</small></div>
                 {slotDefinitions.filter((slot) => state.profile.plannedMeals.includes(slot.id)).map((slot) => (
-                  <MealCard key={slot.id} slot={slot} value={selectedMeal[slot.id]} meta={selectedMeal[`${slot.id}Meta`]} cooked={selectedMeal.cookedSlots?.includes(slot.id) ?? false} onOpen={() => openRecipe(selectedMeal.id, slot.id)} />
+                  <MealCard key={slot.id} slot={slot} value={selectedMeal[slot.id]} meta={selectedMeal[`${slot.id}Meta`]} cooked={selectedMeal.cookedSlots?.includes(slot.id) ?? false} nutrition={nutritionForMeal(selectedMeal[slot.id])} onOpen={() => openRecipe(selectedMeal.id, slot.id)} />
                 ))}
               </div>
               <div className="desktop-week-grid">
@@ -1155,11 +1178,17 @@ export default function Home() {
                   <div className="day-column" key={meal.id}>
                     <div className="day-title"><span>{meal.shortDay}</span><strong>{meal.date}</strong></div>
                     {slotDefinitions.filter((slot) => state.profile.plannedMeals.includes(slot.id)).map((slot) => (
-                      <MealCard key={slot.id} slot={slot} value={meal[slot.id]} meta={meal[`${slot.id}Meta`]} cooked={meal.cookedSlots?.includes(slot.id) ?? false} onOpen={() => openRecipe(meal.id, slot.id)} />
+                      <MealCard key={slot.id} slot={slot} value={meal[slot.id]} meta={meal[`${slot.id}Meta`]} cooked={meal.cookedSlots?.includes(slot.id) ?? false} nutrition={nutritionForMeal(meal[slot.id])} onOpen={() => openRecipe(meal.id, slot.id)} />
                     ))}
                   </div>
                 ))}
               </div>
+            </section>
+
+            <section className="nutrition-tracker" aria-label="Seguimiento nutricional semanal">
+              <div><p className="eyebrow">SEGUIMIENTO NUTRICIONAL</p><h2>Planificado y cocinado</h2><small>Estimaciones orientativas basadas en porciones del catálogo; no reemplazan información del envase ni consejo profesional.</small></div>
+              <article><span>Semana planificada</span><strong>{plannedNutrition.calories.toLocaleString("es-AR")} kcal</strong><small>{plannedNutrition.protein} g proteína · {plannedNutrition.carbs} g carbohidratos · {plannedNutrition.fat} g grasas · {plannedNutrition.fiber} g fibra</small></article>
+              <article className="consumed"><span>Marcado como cocinado</span><strong>{consumedNutrition.calories.toLocaleString("es-AR")} kcal</strong><small>{consumedNutrition.protein} g proteína · {consumedNutrition.carbs} g carbohidratos · {consumedNutrition.fat} g grasas · {consumedNutrition.fiber} g fibra</small></article>
             </section>
 
             <section className="lower-grid">
@@ -1202,6 +1231,8 @@ export default function Home() {
                   <div className="community-body">
                     <div className="creator-row"><small>{calendar.creator}</small><button type="button" onClick={() => followCreator(calendar.creator)}>{calendar.followed ? "Siguiendo" : "Seguir"}</button></div>
                     <h2>{calendar.title}</h2>
+                    <p className="calendar-description">{calendar.description}</p>
+                    <div className="audience-note"><strong>¿Para quién es?</strong><span>{audienceForCategory(calendar.category)}</span><small>Las alergias personales se vuelven a validar al adaptarlo.</small></div>
                     <p>{calendar.ratings ? `★ ${calendar.rating.toFixed(1)} · ${calendar.saves.toLocaleString("es-AR")} guardados` : "Calendario publicado por un usuario real"}</p>
                     {calendar.moderation && <small className="moderation">✓ {calendar.moderation}</small>}
                     <div className="card-actions">
@@ -1412,6 +1443,7 @@ export default function Home() {
               <p className="eyebrow">{currentSlotDefinition.label.toUpperCase()} · {state.week.find((day) => day.id === selectedMealContext.dayId)?.day.toUpperCase()}</p>
               <h2>{selectedRecipeName || "Espacio libre"}</h2>
               <div className="recipe-meta"><span>◷ {selectedRecipe?.minutes ?? "15–45"} min</span><span>◇ {selectedRecipe?.difficulty ?? "Adaptada"}</span><span>♧ 1 porción</span></div>
+              {selectedNutrition && <div className="recipe-nutrition"><strong>{selectedNutrition.calories} kcal estimadas</strong><span>{selectedNutrition.protein} g proteína</span><span>{selectedNutrition.carbs} g carbohidratos</span><span>{selectedNutrition.fat} g grasas</span><span>{selectedNutrition.fiber} g fibra</span></div>}
               <ol className="recipe-steps">{(state.recipeGuides[selectedRecipeName] ?? [
                 `Prepará ${selectedRecipe?.ingredients.slice(0, 4).join(", ") || "los ingredientes indicados"}.`,
                 `Cociná usando ${selectedRecipe?.appliances.join(" y ") || "una preparación simple"} y controlá el punto.`,
@@ -1461,6 +1493,7 @@ export default function Home() {
 
             {modal === "community" && selectedCommunity && <>
               <p className="eyebrow">{selectedCommunity.creator.toUpperCase()}</p><h2>{selectedCommunity.title}</h2><p>{selectedCommunity.description}</p>
+              <div className="audience-note"><strong>Público recomendado</strong><span>{audienceForCategory(selectedCommunity.category)}</span><small>No garantiza compatibilidad con alergias ajenas; MealBoard las revalida durante la adaptación.</small></div>
               <div className="community-detail-stats"><span>★ {selectedCommunity.rating.toFixed(1)} ({selectedCommunity.ratings})</span><span>♥ {selectedCommunity.saves.toLocaleString("es-AR")}</span><span>{selectedCommunity.comments.length} comentarios</span></div>
               <div className="rating-row"><span>Tu puntuación:</span>{[1, 2, 3, 4, 5].map((rating) => <button type="button" key={rating} onClick={() => rateCalendar(rating)}>★</button>)}</div>
               <div className="comment-list">{selectedCommunity.comments.map((comment) => <div key={comment.id}><strong>{comment.author}</strong><p>{comment.text}</p></div>)}</div>
@@ -1468,7 +1501,7 @@ export default function Home() {
               <div className="modal-actions split"><button className="report-button" type="button" onClick={reportCalendar}>Reportar contenido</button><div><button className="secondary-button" type="button" onClick={() => saveCalendar(selectedCommunity.id)}>{selectedCommunity.favorite ? "Quitar favorito" : "Guardar"}</button><button className="primary-button" type="button" onClick={() => askPlanCategory(selectedCommunity.title, true)}>Adaptar y republicar</button></div></div>
             </>}
 
-            {modal === "publish" && <form onSubmit={publishCurrentCalendar}><p className="eyebrow">PUBLICAR EN LA COMUNIDAD</p><h2>Compartí tu semana real</h2><p>Se guardará en la comunidad para que otros usuarios puedan encontrarla y adaptarla. No se publica tu inventario, presupuesto, alergias ni correo.</p><label>Título del calendario<input maxLength={80} value={publishTitle} onChange={(event) => setPublishTitle(event.target.value)} required /></label><label>Categoría<select value={publishCategory} onChange={(event) => setPublishCategory(event.target.value as PlanCategory)}>{planCategories.map((category) => <option key={category.id}>{category.id}</option>)}</select></label><div className="publish-checks"><span>✓ Revisión de alergias y rechazos</span><span>✓ Solo se comparten comidas y nombre público</span><span>✓ {state.profile.plannedMeals.length * 7} comidas incluidas</span></div><div className="modal-actions"><button className="secondary-button" type="button" onClick={() => setModal(null)}>Cancelar</button><button className="primary-button" disabled={publishingCalendar} type="submit">{publishingCalendar ? "Publicando…" : "Revisar y publicar"}</button></div></form>}
+            {modal === "publish" && <form onSubmit={publishCurrentCalendar}><p className="eyebrow">PUBLICAR EN LA COMUNIDAD</p><h2>Compartí tu semana real</h2><p>Se guardará en la comunidad para que otros usuarios puedan encontrarla y adaptarla. No se publica tu inventario, presupuesto, alergias ni correo.</p><label>Título del calendario<input maxLength={80} value={publishTitle} onChange={(event) => setPublishTitle(event.target.value)} required /></label><label>Descripción<textarea maxLength={240} value={publishDescription} onChange={(event) => setPublishDescription(event.target.value)} required /></label><label>Categoría<select value={publishCategory} onChange={(event) => setPublishCategory(event.target.value as PlanCategory)}>{planCategories.map((category) => <option key={category.id}>{category.id}</option>)}</select></label><div className="audience-note"><strong>Público recomendado</strong><span>{audienceForCategory(publishCategory)}</span></div><div className="publish-checks"><span>✓ Revisión de alergias y rechazos</span><span>✓ Solo se comparten comidas y nombre público</span><span>✓ {state.profile.plannedMeals.length * 7} comidas incluidas</span></div><div className="modal-actions"><button className="secondary-button" type="button" onClick={() => setModal(null)}>Cancelar</button><button className="primary-button" disabled={publishingCalendar} type="submit">{publishingCalendar ? "Publicando…" : "Revisar y publicar"}</button></div></form>}
 
             {modal === "scan" && <><p className="eyebrow">RECONOCIMIENTO DE {scanMode.toUpperCase()}</p><h2>Confirmá los productos</h2><p>El reconocimiento es de demostración y nunca agrega productos sin tu confirmación.</p><div className="scan-list">{scanCandidates.map((item) => <div key={item.id}><strong>{item.name}</strong><span>{item.amount}</span><b>{money(item.price)}</b></div>)}</div><div className="modal-actions"><button className="secondary-button" type="button" onClick={() => setModal(null)}>Cancelar</button><button className="primary-button" type="button" onClick={confirmScan}>Agregar {scanCandidates.length} productos</button></div></>}
 
