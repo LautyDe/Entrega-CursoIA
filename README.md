@@ -8,6 +8,17 @@ para comprar.
 
 [Abrir MealBoard](https://mealboard-ai.lauty-d-p.chatgpt.site)
 
+## Entrega final
+
+- [Informe final en PDF](output/pdf/MealBoard-entrega-final.pdf) — 15 páginas con
+  accesos, arquitectura, agentes, UML, stack, evidencias, UX, seguridad, co-work
+  e IA local.
+- [Arquitectura completa](docs/arquitectura.md).
+- [Evaluación UX y seguridad](docs/evaluacion-ux-seguridad.md).
+- [Registro reproducible de una sesión](docs/evidencias/sesion-real.md).
+- [Guion de demostración de tres minutos](docs/guion-demo.md).
+- El PDF se regenera con `py -3 scripts/generate-final-report.py`.
+
 ## Funciones principales
 
 - Calendario semanal configurable.
@@ -26,6 +37,14 @@ para comprar.
   OpenStreetMap, con marcadores destacados cuando existe una promoción
   compatible con los medios seleccionados.
 - Comunidad de calendarios para guardar, seguir, publicar y adaptar.
+- Calendarios comunitarios reales persistidos en D1, con categorías, descripción
+  y público recomendado.
+- Onboarding obligatorio para reemplazar los datos de ejemplo por información
+  confirmada por cada usuario.
+- Registro de comidas cocinadas, confirmación de ingredientes y descuento del
+  inventario.
+- Seguimiento nutricional básico estimado de calorías, proteínas,
+  carbohidratos, grasas y fibra.
 - Memoria persistente por usuario en Cloudflare D1, con copia local de respaldo
   editable por el usuario.
 - Confirmación humana antes de aplicar una planificación.
@@ -140,8 +159,9 @@ La explicación completa y los diagramas se encuentran en
 - Las contraseñas se almacenan únicamente como hashes administrados por Better
   Auth. Calendario, inventario, memoria, compras y preferencias quedan asociados
   al usuario autenticado.
-- En el primer acceso se importa el estado anterior guardado en `localStorage`
-  para conservar los datos del MVP anónimo.
+- En el primer acceso se solicita un perfil real y solo se habilita la app
+  cuando D1 confirma su persistencia. No se importan automáticamente datos de
+  demostración desde `localStorage`.
 
 ### Variables privadas de autenticación
 
@@ -176,7 +196,8 @@ instala desde el navegador y se abre en una ventana independiente.
 - El selector muestra una lista consistente en escritorio y celular, busca
   bancos, billeteras y fintech por nombre o alias, e ignora palabras del tipo
   de medio antes de confirmar opciones desconocidas.
-- Los precios y calendarios sociales son demostrativos. Las promociones
+- Los precios del catálogo son demostrativos. Los calendarios sociales son
+  publicaciones reales de usuarios autenticados. Las promociones
   identifican fuente y período de vigencia, pero siempre deben confirmarse con
   la entidad antes de pagar porque pueden cambiar o agotarse.
 - La búsqueda del mapa consulta primero las secciones oficiales del supermercado

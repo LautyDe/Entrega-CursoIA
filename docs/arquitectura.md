@@ -25,11 +25,13 @@ flowchart LR
     API --> UI
     UI -->|Muestra propuesta| U
     U -->|Confirma o cancela| UI
-    UI -->|Estado confirmado| LS[(localStorage)]
-    LS -->|Perfil, memoria e historial| UI
+    UI -->|Estado confirmado| D1[(Cloudflare D1)]
+    D1 -->|Perfil, memoria e historial| UI
+    UI -. respaldo local .-> LS[(localStorage)]
     UI -->|Memoria previa en el siguiente ciclo| API
 
-    DEMO[(Catálogo, precios y comunidad de demostración)] --> AG
+    DEMO[(Catálogo y precios de demostración)] --> AG
+    COM[(Calendarios reales de usuarios en D1)] --> UI
     PROMO[(Promociones curadas con fuente y vigencia)] --> AG
     WEB[(Fuentes públicas oficiales permitidas)] --> AG
 
@@ -40,7 +42,7 @@ flowchart LR
     class U actor;
     class UI,API,ORQ traditional;
     class AG agent;
-    class LS,DEMO,PROMO,WEB memory;
+    class D1,LS,DEMO,COM,PROMO,WEB memory;
 ```
 
 ### Clasificación de componentes
@@ -56,7 +58,8 @@ flowchart LR
 | OpenStreetMap / Overpass | Datos abiertos externos | Busca supermercados próximos después del permiso de ubicación. |
 | Agente complementario de comercios | Consulta determinística bajo demanda | Consulta solo las páginas oficiales de cadenas detectadas cerca del usuario y filtra por los medios elegidos. |
 | Navegador de fuentes oficiales | Infraestructura acotada | Recorre enlaces internos relevantes, impide salir del dominio, aplica límites y recuerda temporalmente rutas útiles. |
-| `localStorage` | Persistencia local | Conserva perfil, memoria, inventario, compras y evaluaciones. |
+| Cloudflare D1 | Persistencia principal | Conserva identidad, sesiones, estado por usuario y calendarios comunitarios reales. |
+| `localStorage` | Respaldo local | Mantiene una copia del estado en el dispositivo, subordinada a D1 tras autenticarse. |
 
 ## 2. Flujo de agentes
 
@@ -70,7 +73,7 @@ flowchart TD
     A1[1. Captura<br/>Normaliza entradas y detecta vencimientos] --> A2
     A2[2. Memoria<br/>Recupera señales de semanas anteriores] --> A3
     A3[3. Análisis<br/>Aplica alergias, rechazos, nivel y equipos] --> A4
-    A4[4. Comunidad<br/>Selecciona afinidad social demostrativa] --> A5
+    A4[4. Comunidad<br/>Transfiere categoría y fuente comunitaria real] --> A5
     A5[5. Planificación<br/>Puntúa recetas y arma la semana] --> A6
     A6[6. Recetas<br/>Genera instrucciones adaptadas] --> A7
     A7[7. Beneficios públicos<br/>Consulta fuentes oficiales seleccionadas] --> A8
@@ -92,7 +95,7 @@ flowchart TD
 | 1 | Captura | Perfil, inventario y comidas solicitadas | Cómo normalizar datos y separar alimentos urgentes o vencidos | Estado inicial validado |
 | 2 | Memoria | Evaluaciones y recuerdos previos | Si conviene priorizar rapidez, ahorro o variedad | Señales y etiquetas preferidas |
 | 3 | Análisis | Alergias, rechazos, vencimientos, nivel y electrodomésticos | Qué recetas son seguras y realizables | Recetas candidatas filtradas |
-| 4 | Comunidad | Preferencias y calendarios demostrativos | Qué calendario aporta mayor afinidad | Fuente comunitaria y etiquetas |
+| 4 | Comunidad | Categoría elegida y calendario real opcional | Qué orientación transferir sin superar restricciones | Fuente comunitaria y etiquetas |
 | 5 | Planificación | Candidatas, presupuesto, urgencias y afinidad | Qué receta ocupa cada comida de la semana | Calendario semanal propuesto |
 | 6 | Recetas | Comidas elegidas, nivel y equipos | Cómo explicar cada preparación de forma breve | Guías de cocina |
 | 7 | Beneficios públicos | Medios seleccionados y fuentes oficiales permitidas | Qué publicaciones públicas pueden mostrarse como referencia | Estado, fuente y fragmentos públicos, sin aplicarlos como ahorro |
@@ -105,10 +108,10 @@ que se consulta en la planificación siguiente.
 
 ## 3. Persistencia y control del usuario
 
-La memoria vive en el navegador bajo la clave `mealboard-state`. Allí se
-guardan el perfil, el calendario confirmado, el inventario, la lista de compras,
-las evaluaciones, las compras y los registros aprendidos. No se utiliza una
-base de datos remota para estos datos.
+La memoria principal vive en Cloudflare D1 y queda vinculada a la identidad
+validada por Better Auth. Allí se guardan perfil, calendario confirmado,
+inventario, lista de compras, evaluaciones, compras y registros aprendidos.
+El navegador conserva una copia bajo `mealboard-state` como respaldo local.
 
 El usuario conserva control explícito sobre la memoria: puede consultarla,
 corregir registros, eliminarlos o restablecer todos los datos de demostración.
@@ -125,6 +128,7 @@ sequenceDiagram
     participant O as Orquestador
     participant A as Agentes 1 a 9
     participant M as localStorage
+    participant D1 as Cloudflare D1
 
     U->>UI: Configura perfil, inventario y comidas
     UI->>M: Guarda preferencias confirmadas
@@ -145,7 +149,8 @@ sequenceDiagram
 
     alt Usuario confirma
         U->>UI: Confirmar calendario
-        UI->>M: Persiste plan, compras y memoria
+        UI->>M: Persiste respaldo local
+        UI->>D1: Persiste plan, compras y memoria por usuario
         UI-->>U: Informa que el calendario fue aplicado
     else Usuario cancela
         U->>UI: Cancelar
@@ -169,14 +174,14 @@ sequenceDiagram
 - Ningún calendario propuesto modifica el estado persistente sin confirmación.
 - Las promociones solo se aplican cuando coinciden exactamente banco y tipo de
   tarjeta, y su período de vigencia incluye la fecha de consulta.
-- Los precios y la actividad comunitaria son datos de demostración. Las
+- Los precios son datos de demostración. La actividad comunitaria proviene de
+  publicaciones reales en D1. Las
   promociones enlazan sus condiciones oficiales y requieren confirmación antes
   de pagar.
 - La geolocalización es opcional, no se persiste y se envía a Overpass solo al
   solicitar supermercados cercanos.
-- La persistencia en `localStorage` simplifica el MVP y evita costos, pero no
-  sincroniza información entre dispositivos y no reemplaza una base de datos
-  multiusuario.
+- D1 permite continuar entre dispositivos. `localStorage` no se considera la
+  fuente principal después de la autenticación.
 - El motor por reglas favorece explicabilidad y costo cero, aunque comprende
   menos variaciones de lenguaje que un modelo generativo.
 
