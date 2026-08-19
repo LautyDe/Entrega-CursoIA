@@ -6,6 +6,7 @@ import { argentinaCardTypes, benefitSourceForProvider, canonicalPaymentProvider,
 import { findNearbySupermarkets, type Coordinates, type NearbyStore } from "../lib/nearby-stores";
 import { migrateLegacyPayment, promotionSaving, selectBestPromotionForPurchase, type CardType, type PaymentMethod } from "../lib/payments";
 import { MEALBOARD_STORAGE_KEY, parseStoredState, serializeStoredState } from "../lib/persistence";
+import { normalizeIngredientName, parseInventoryAmount, recommendedConsumption, subtractInventoryAmount } from "../lib/inventory-consumption";
 import { extractPublicBenefitReferences, publicBenefitMatchesStore } from "../lib/public-benefit-extraction";
 import { StoreMap, type StoreDeal } from "./store-map";
 import { PaymentProviderCombobox } from "./payment-provider-combobox";
@@ -18,6 +19,7 @@ type Meal = {
   lunch: string; lunchMeta: string;
   snack: string; snackMeta: string;
   dinner: string; dinnerMeta: string;
+  cookedSlots?: MealSlot[];
 };
 type Ingredient = {
   id: number; name: string; amount: string; expiry: string; price: number;
@@ -81,7 +83,14 @@ type PlanResponse = {
 };
 type ModalName =
   | "plan" | "recipe" | "feedback" | "notice" | "agents" | "community"
-  | "publish" | "scan" | "inventory-edit" | "meal-edit" | "missed" | "memory-edit";
+  | "publish" | "scan" | "inventory-edit" | "meal-edit" | "missed" | "memory-edit" | "cooked";
+
+type ConsumptionDraft = {
+  id: number;
+  expectedName: string;
+  inventoryId: number | null;
+  quantity: string;
+};
 
 const slotDefinitions: Array<{ id: MealSlot; label: string; icon: string }> = [
   { id: "breakfast", label: "Desayuno", icon: "☼" },
@@ -218,6 +227,11 @@ function expiryUrgent(item: Ingredient) {
   return Number.isFinite(days) && days <= 2 && !item.expiry.toLowerCase().includes("mes");
 }
 
+function inventoryExpired(item: Ingredient) {
+  if (item.expiry.toLocaleLowerCase("es-AR").includes("vencid")) return true;
+  return Boolean(item.expiryDate && item.expiryDate < todayIso());
+}
+
 function initials(name: string) {
   return name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "MB";
 }
@@ -237,18 +251,19 @@ function restoredAppState(value: string | null): AppState | null {
     memory: restored.memory ?? initialState.memory,
     purchases: restored.purchases ?? initialState.purchases,
     reviews: restored.reviews ?? initialState.reviews,
-    week: (restored.week ?? initialWeek).map((day) => ({ ...initialWeek.find((base) => base.id === day.id), ...day } as Meal)),
+    week: (restored.week ?? initialWeek).map((day) => ({ ...initialWeek.find((base) => base.id === day.id), ...day, cookedSlots: day.cookedSlots ?? [] } as Meal)),
     inventory: (restored.inventory ?? initialInventory).map((item) => ({ purchaseDate: "", expiryDate: "", ...item })),
     shopping: (restored.shopping ?? initialShopping).map((item, index) => ({ id: Date.now() + index, ...item })),
   };
 }
 
-function MealCard({ slot, value, meta, onOpen }: {
-  slot: { id: MealSlot; label: string; icon: string }; value: string; meta: string; onOpen: () => void;
+function MealCard({ slot, value, meta, cooked, onOpen }: {
+  slot: { id: MealSlot; label: string; icon: string }; value: string; meta: string; cooked: boolean; onOpen: () => void;
 }) {
   return (
-    <button className="meal-card" type="button" onClick={onOpen} aria-label={`${slot.label}: ${value}`}>
+    <button className={cooked ? "meal-card cooked" : "meal-card"} type="button" onClick={onOpen} aria-label={`${slot.label}: ${value}${cooked ? ", cocinada" : ""}`}>
       <span className="meal-label">{slot.label}</span>
+      {cooked && <span className="cooked-badge">✓ Cocinada</span>}
       <span className="meal-icon" aria-hidden="true">{slot.icon}</span>
       <strong>{value || "Espacio libre"}</strong>
       <small>{meta || "Tocá para completar"}</small>
@@ -358,6 +373,8 @@ export default function Home() {
   const [newShopping, setNewShopping] = useState({ name: "", amount: "", price: "" });
   const [reviewDraft, setReviewDraft] = useState({ prepared: "10", liked: "", easy: "Sí", spent: "", discountUsed: true, reason: "Cumplí casi todo" });
   const [memoryDraft, setMemoryDraft] = useState<MemoryRecord | null>(null);
+  const [consumptionDraft, setConsumptionDraft] = useState<ConsumptionDraft[]>([]);
+  const [consumptionError, setConsumptionError] = useState("");
   const [location, setLocation] = useState<Coordinates | null>(null);
   const [nearbyStores, setNearbyStores] = useState<NearbyStore[]>([]);
   const [locationStatus, setLocationStatus] = useState("Usá tu ubicación para encontrar supermercados cercanos.");
@@ -636,10 +653,81 @@ export default function Home() {
   const selectedRecipeName = state.week.find((day) => day.id === selectedMealContext.dayId)?.[selectedMealContext.slot] ?? "";
   const selectedRecipe = recipeCatalog.find((recipe) => recipe.name === selectedRecipeName);
   const currentSlotDefinition = slotDefinitions.find((slot) => slot.id === selectedMealContext.slot) ?? slotDefinitions[1];
+  const selectedMealDay = state.week.find((day) => day.id === selectedMealContext.dayId);
+  const selectedMealCooked = selectedMealDay?.cookedSlots?.includes(selectedMealContext.slot) ?? false;
 
   const openRecipe = (dayId: string, slot: MealSlot) => {
     setSelectedMealContext({ dayId, slot });
     setModal("recipe");
+  };
+
+  const openCookedConfirmation = () => {
+    if (!selectedRecipeName || selectedMealCooked) return;
+    const availableInventory = state.inventory.filter((item) => !inventoryExpired(item) && parseInventoryAmount(item.amount));
+    const rows = (selectedRecipe?.ingredients ?? []).map((ingredient, index) => {
+      const normalizedIngredient = normalizeIngredientName(ingredient);
+      const match = availableInventory.find((item) => {
+        const normalizedItem = normalizeIngredientName(item.name);
+        return normalizedItem === normalizedIngredient || normalizedItem.includes(normalizedIngredient) || normalizedIngredient.includes(normalizedItem);
+      });
+      const parsed = match ? parseInventoryAmount(match.amount) : null;
+      return { id: Date.now() + index, expectedName: ingredient, inventoryId: match?.id ?? null, quantity: parsed ? String(recommendedConsumption(parsed)) : "" };
+    });
+    setConsumptionDraft(rows);
+    setConsumptionError("");
+    setModal("cooked");
+  };
+
+  const addConsumptionRow = () => {
+    const usedIds = new Set(consumptionDraft.map((row) => row.inventoryId));
+    const available = state.inventory.find((item) => !inventoryExpired(item) && parseInventoryAmount(item.amount) && !usedIds.has(item.id));
+    if (!available) {
+      setConsumptionError("No hay más productos válidos en el inventario para agregar.");
+      return;
+    }
+    const parsed = parseInventoryAmount(available.amount)!;
+    setConsumptionDraft([...consumptionDraft, { id: Date.now(), expectedName: "Ingrediente agregado", inventoryId: available.id, quantity: String(recommendedConsumption(parsed)) }]);
+    setConsumptionError("");
+  };
+
+  const confirmCookedMeal = (event: FormEvent) => {
+    event.preventDefault();
+    const usage = new Map<number, number>();
+    for (const row of consumptionDraft) {
+      if (row.inventoryId === null) continue;
+      const quantity = Number(row.quantity.replace(",", "."));
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        setConsumptionError("Todas las cantidades utilizadas deben ser mayores que cero.");
+        return;
+      }
+      usage.set(row.inventoryId, (usage.get(row.inventoryId) ?? 0) + quantity);
+    }
+    for (const [inventoryId, used] of usage) {
+      const item = state.inventory.find((candidate) => candidate.id === inventoryId);
+      const parsed = item ? parseInventoryAmount(item.amount) : null;
+      if (!item || !parsed || inventoryExpired(item) || used > parsed.value) {
+        setConsumptionError(`${item?.name ?? "Un ingrediente"} no tiene cantidad suficiente o ya no es válido.`);
+        return;
+      }
+    }
+    const inventory = state.inventory.flatMap((item) => {
+      const used = usage.get(item.id);
+      if (!used) return [item];
+      const amount = subtractInventoryAmount(item.amount, used);
+      return amount ? [{ ...item, amount }] : [];
+    });
+    const week = state.week.map((day) => day.id === selectedMealContext.dayId
+      ? { ...day, cookedSlots: [...new Set([...(day.cookedSlots ?? []), selectedMealContext.slot])] }
+      : day);
+    const usedNames = state.inventory.filter((item) => usage.has(item.id)).map((item) => item.name);
+    persist({
+      ...state,
+      inventory,
+      week,
+      memory: [...state.memory, { id: Date.now(), text: `Cocinaste ${selectedRecipeName}${usedNames.length ? ` usando ${usedNames.join(", ")}` : " sin descontar ingredientes registrados"}.`, kind: "Comida cocinada", createdAt: "Hoy" }],
+    });
+    setModal(null);
+    notify("Comida cocinada e inventario actualizado");
   };
 
   const generatePlan = async (preferredCommunityCalendar?: string, republish = false) => {
@@ -853,7 +941,7 @@ export default function Home() {
     if (!replacement) return;
     const metaKey = `${selectedMealContext.slot}Meta` as `${MealSlot}Meta`;
     const week = state.week.map((day) => day.id === selectedMealContext.dayId
-      ? { ...day, [selectedMealContext.slot]: replacement.name, [metaKey]: `${replacement.minutes} min · ${replacement.difficulty}` } as Meal
+      ? { ...day, [selectedMealContext.slot]: replacement.name, [metaKey]: `${replacement.minutes} min · ${replacement.difficulty}`, cookedSlots: (day.cookedSlots ?? []).filter((slot) => slot !== selectedMealContext.slot) } as Meal
       : day);
     persist({ ...state, week });
     setModal(null);
@@ -1006,7 +1094,7 @@ export default function Home() {
               <div className={`mobile-day-detail slots-${state.profile.plannedMeals.length}`}>
                 <div className="day-title"><span>{selectedMeal.day}</span><small>{selectedMeal.date} de julio</small></div>
                 {slotDefinitions.filter((slot) => state.profile.plannedMeals.includes(slot.id)).map((slot) => (
-                  <MealCard key={slot.id} slot={slot} value={selectedMeal[slot.id]} meta={selectedMeal[`${slot.id}Meta`]} onOpen={() => openRecipe(selectedMeal.id, slot.id)} />
+                  <MealCard key={slot.id} slot={slot} value={selectedMeal[slot.id]} meta={selectedMeal[`${slot.id}Meta`]} cooked={selectedMeal.cookedSlots?.includes(slot.id) ?? false} onOpen={() => openRecipe(selectedMeal.id, slot.id)} />
                 ))}
               </div>
               <div className="desktop-week-grid">
@@ -1014,7 +1102,7 @@ export default function Home() {
                   <div className="day-column" key={meal.id}>
                     <div className="day-title"><span>{meal.shortDay}</span><strong>{meal.date}</strong></div>
                     {slotDefinitions.filter((slot) => state.profile.plannedMeals.includes(slot.id)).map((slot) => (
-                      <MealCard key={slot.id} slot={slot} value={meal[slot.id]} meta={meal[`${slot.id}Meta`]} onOpen={() => openRecipe(meal.id, slot.id)} />
+                      <MealCard key={slot.id} slot={slot} value={meal[slot.id]} meta={meal[`${slot.id}Meta`]} cooked={meal.cookedSlots?.includes(slot.id) ?? false} onOpen={() => openRecipe(meal.id, slot.id)} />
                     ))}
                   </div>
                 ))}
@@ -1243,7 +1331,7 @@ export default function Home() {
 
       {modal && (
         <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !planning) setModal(null); }}>
-          <section className={["plan", "agents", "community"].includes(modal) ? "modal modal-wide" : "modal"} role="dialog" aria-modal="true" aria-label="Ventana de MealBoard">
+          <section className={["plan", "agents", "community", "cooked"].includes(modal) ? "modal modal-wide" : "modal"} role="dialog" aria-modal="true" aria-label="Ventana de MealBoard">
             <button className="modal-close" type="button" onClick={() => setModal(null)} aria-label="Cerrar">×</button>
 
             {modal === "plan" && (
@@ -1271,8 +1359,35 @@ export default function Home() {
               ]).map((step) => <li key={step}>{step}</li>)}</ol>
               {state.profile.nutrition && <div className="nutrition-note">Recomendación opcional: acompañá con agua y ajustá la porción a tu nivel de hambre. Esto no reemplaza consejo profesional.</div>}
               <div className="safety-note">✓ Validada según alergias, alimentos vencidos y electrodomésticos disponibles.</div>
-              <div className="modal-actions wrap"><button className="secondary-button" type="button" onClick={() => { setMissedDraft({ reason: "Me faltó tiempo", targetDay: state.week.find((day) => day.id !== selectedMealContext.dayId)?.id ?? "mar", reschedule: true }); setModal("missed"); }}>No la cociné</button><button className="primary-button" type="button" onClick={openMealEdit}>Cambiar comida</button></div>
+              <div className="modal-actions wrap"><button className="secondary-button" type="button" onClick={() => { setMissedDraft({ reason: "Me faltó tiempo", targetDay: state.week.find((day) => day.id !== selectedMealContext.dayId)?.id ?? "mar", reschedule: true }); setModal("missed"); }}>No la cociné</button><button className="secondary-button" type="button" onClick={openMealEdit}>Cambiar comida</button><button className="primary-button" type="button" disabled={!selectedRecipeName || selectedMealCooked} onClick={openCookedConfirmation}>{selectedMealCooked ? "✓ Ya está cocinada" : "Marcar como cocinada"}</button></div>
             </>}
+
+            {modal === "cooked" && <form onSubmit={confirmCookedMeal}>
+              <p className="eyebrow">CONFIRMACIÓN DE CONSUMO</p><h2>¿Qué usaste para cocinar {selectedRecipeName}?</h2>
+              <p>Revisá los productos y cantidades estimadas. Podés cambiar el ingrediente, corregir la cantidad, quitar una fila o agregar otro producto del inventario.</p>
+              <div className="consumption-list">
+                {consumptionDraft.map((row) => {
+                  const selectedInventory = state.inventory.find((item) => item.id === row.inventoryId);
+                  const parsed = selectedInventory ? parseInventoryAmount(selectedInventory.amount) : null;
+                  return <div className="consumption-row" key={row.id}>
+                    <div><small>Ingrediente esperado</small><strong>{row.expectedName}</strong></div>
+                    <label>Producto del inventario<select value={row.inventoryId ?? ""} onChange={(event) => {
+                      const inventoryId = event.target.value ? Number(event.target.value) : null;
+                      const item = state.inventory.find((candidate) => candidate.id === inventoryId);
+                      const amount = item ? parseInventoryAmount(item.amount) : null;
+                      setConsumptionDraft(consumptionDraft.map((draftRow) => draftRow.id === row.id ? { ...draftRow, inventoryId, quantity: amount ? String(recommendedConsumption(amount)) : "" } : draftRow));
+                    }}><option value="">No descontar / no estaba registrado</option>{state.inventory.filter((item) => !inventoryExpired(item) && parseInventoryAmount(item.amount)).map((item) => <option value={item.id} key={item.id}>{item.name} · {item.amount}</option>)}</select></label>
+                    <label>Cantidad usada<input type="number" min="0.01" step="0.01" disabled={!row.inventoryId} value={row.quantity} onChange={(event) => setConsumptionDraft(consumptionDraft.map((draftRow) => draftRow.id === row.id ? { ...draftRow, quantity: event.target.value } : draftRow))} /><small>{parsed ? `Disponible: ${parsed.value} ${parsed.unit}` : "Sin descuento"}</small></label>
+                    <button className="delete-button" type="button" aria-label={`Quitar ${row.expectedName}`} onClick={() => setConsumptionDraft(consumptionDraft.filter((draftRow) => draftRow.id !== row.id))}>×</button>
+                  </div>;
+                })}
+                {!consumptionDraft.length && <div className="empty-state compact"><strong>Sin ingredientes seleccionados</strong><span>Podés confirmar la comida sin descontar inventario o agregar un producto.</span></div>}
+              </div>
+              <button className="secondary-button" type="button" onClick={addConsumptionRow}>+ Agregar ingrediente del inventario</button>
+              {consumptionError && <div className="onboarding-error" role="alert">{consumptionError}</div>}
+              <div className="safety-note">Los alimentos vencidos están excluidos y nunca pueden confirmarse como utilizados.</div>
+              <div className="modal-actions"><button className="secondary-button" type="button" onClick={() => setModal("recipe")}>Volver</button><button className="primary-button" type="submit">Confirmar y descontar</button></div>
+            </form>}
 
             {modal === "meal-edit" && <form onSubmit={confirmMealEdit}><p className="eyebrow">CAMBIO CON CONFIRMACIÓN</p><h2>Elegí otra comida</h2><p>Solo mostramos recetas compatibles con este momento del día.</p><label>Reemplazo<select value={mealReplacement} onChange={(event) => setMealReplacement(event.target.value)}>{recipeCatalog.filter((recipe) => recipe.mealTypes.includes(selectedMealContext.slot)).map((recipe) => <option key={recipe.id}>{recipe.name}</option>)}</select></label><div className="modal-actions"><button className="secondary-button" type="button" onClick={() => setModal("recipe")}>Volver</button><button className="primary-button" type="submit">Confirmar cambio</button></div></form>}
 
