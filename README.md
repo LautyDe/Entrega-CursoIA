@@ -10,7 +10,7 @@ para comprar.
 
 ## Entrega final
 
-- [Informe final en PDF](output/pdf/MealBoard-entrega-final.pdf) — 15 páginas con
+- [Informe final en PDF](output/pdf/MealBoard-entrega-final.pdf) — 16 páginas con
   accesos, arquitectura, agentes, UML, stack, evidencias, UX, seguridad, co-work
   e IA local.
 - [Arquitectura completa](docs/arquitectura.md).
