@@ -384,7 +384,7 @@ def main():
         ["Documentación", '<link href="https://github.com/LautyDe/Entrega-CursoIA/blob/master/docs/arquitectura.md" color="#34745B">Arquitectura y anexos versionados</link>'],
     ]
     s += [table(links, [40 * mm, 125 * mm]), Spacer(1, 12 * mm),
-          metrics([("9", "agentes"), ("35", "pruebas"), ("100%", "reglas auditables"), ("0", "API de LLM")]),
+          metrics([("9", "agentes"), ("39", "pruebas"), ("100%", "reglas auditables"), ("0", "API de LLM")]),
           Spacer(1, 9 * mm), P("Versión documentada: 19 de agosto de 2026", "Center"), PageBreak()]
 
     # 2
@@ -503,7 +503,7 @@ def main():
     s += [P("Privacidad de la evidencia", "H2x"), P("La sesión corresponde al usuario autorizado para esta entrega. El correo electrónico no se publica en las figuras; las capturas se limitan a los datos necesarios para demostrar el recorrido."), PageBreak()]
 
     # 8
-    s += title("7. Evidencia real: categoría y agentes", "La propuesta se generó en vivo y se canceló antes de aplicar cambios.")
+    s += title("7. Evidencia real: categoría y agentes", "La propuesta se generó en vivo y conservó la prioridad de seguridad.")
     if CATEGORY_SCREENSHOT.exists():
         s += [Image(str(CATEGORY_SCREENSHOT), width=155*mm, height=87.2*mm),
               P("Figura 2. Selección de categoría. La UI aclara que alergias, vencimientos y restricciones conservan prioridad.", "Center"), Spacer(1, 3 * mm)]
@@ -513,7 +513,7 @@ def main():
     s += [PageBreak()]
 
     # 9
-    s += title("8. Evidencia real: control humano", "Ningún cambio de calendario o inventario se confirmó durante la captura.")
+    s += title("8. Evidencia real: control humano", "La interfaz expone la confirmación antes de aplicar calendario o consumo.")
     if CONFIRMATION_SCREENSHOT.exists():
         s += [Image(str(CONFIRMATION_SCREENSHOT), width=155*mm, height=87.2*mm),
               P("Figura 4. Los agentes 7, 8 y 9 verifican beneficios, compras y seguridad; la UI mantiene Cancelar y Confirmar calendario.", "Center"), Spacer(1, 3 * mm)]
@@ -523,8 +523,29 @@ def main():
     s += [PageBreak()]
 
     # 10
-    s += title("9. Evidencia reproducible y calidad")
-    s += [P("La sesión autenticada documentada recorre: panel real → categoría → nueve agentes → control humano → confirmación de consumo. El detalle observado, las acciones canceladas y los límites de la evidencia están versionados en <b>docs/evidencias/sesion-real.md</b>."),
+    s += title("9. Resultados confirmados en la cuenta de prueba", "Cambios persistidos y verificados después de cada confirmación.")
+    confirmed = [
+        ["Recorrido", "Antes", "Acción confirmada", "Después"],
+        ["Calendario", "$75.000 disponibles", "Aplicar plan Fit/proteico", "$70.000 · 14 comidas · compra $5.000"],
+        ["Cocción", "Lentejas 500 g · 0 kcal", "Descontar 100 g", "Lentejas 400 g · 245 kcal"],
+        ["Compra", "4 pendientes · 8 productos", "Finalizar 4 seleccionados", "0 pendientes · 12 productos · +$1.500"],
+        ["Evaluación", "Sin cierre semanal", "Guardar 1 comida y $5.000", "Evaluación y gusto persistidos"],
+        ["Comunidad", "0 publicaciones reales", "Publicar, puntuar y comentar", "1 calendario · 5,0 (1) · 1 comentario"],
+        ["Pagos", "1 medio", "Guardar y consultar fuentes", "4 medios configurados"],
+        ["Mapa", "Sin consulta", "Solicitar ubicación", "Permiso negado; app operativa, sin persistencia"],
+    ]
+    s += [table(confirmed, [28*mm, 38*mm, 46*mm, 53*mm]), Spacer(1, 7 * mm),
+          metrics([("14", "comidas"), ("100 g", "descontados"), ("+$1.500", "ahorro"), ("5,0", "valoración")]),
+          Spacer(1, 5 * mm),
+          P("Confirmación observable", "H2x"),
+          P("Cada resultado se comprobó después de la acción: el calendario actualizó presupuesto y lista; la cocción redujo stock y sumó nutrición; la compra incorporó productos; la evaluación y la memoria persistieron; la publicación recibió una interacción real."),
+          P("Privacidad y falla controlada", "H2x"),
+          P("La ubicación exacta no se registró. Cuando el navegador negó el permiso, MealBoard informó el estado y mantuvo disponibles las demás funciones. El detalle reproducible está en <b>docs/evidencias/recorridos-confirmados.md</b>.", "Callout"),
+          PageBreak()]
+
+    # 11
+    s += title("10. Evidencia reproducible y calidad")
+    s += [P("La sesión autenticada documentada recorre: panel real → categoría → nueve agentes → control humano → confirmaciones de calendario, consumo, compra, evaluación y comunidad. Los resultados antes/después están versionados en <b>docs/evidencias/sesion-real.md</b> y <b>docs/evidencias/recorridos-confirmados.md</b>."),
           P("Cobertura automatizada", "H2x")]
     tests = [
         ["Suite", "Qué verifica"],
@@ -532,10 +553,11 @@ def main():
         ["payments-and-persistence", "Bancos, tipos de tarjeta, promociones compatibles y serialización."],
         ["promotion-discovery", "Fuentes oficiales, extracción y límites de vigencia."],
         ["inventory-consumption", "Corrección de cantidades, unidades y descuento sin stock negativo."],
+        ["confirmed-actions", "Efectos antes/después de confirmar consumo y compra."],
         ["nutrition", "Cálculo nutricional por receta, comida y seguimiento cocinado."],
     ]
     s += [table(tests, [52*mm, 113*mm]), Spacer(1, 8 * mm),
-          metrics([("35", "casos"), ("5", "suites"), ("0", "fallos"), ("1", "build real")]),
+          metrics([("39", "casos"), ("6", "archivos"), ("0", "fallos"), ("1", "build real")]),
           Spacer(1, 4 * mm),
           P("Comandos de aceptación", "H2x"),
           P("<font name='Courier'>npm run lint</font><br/><font name='Courier'>npm test</font><br/><font name='Courier'>npm run sites:build</font><br/><font name='Courier'>npm run sites:validate</font>", "Callout"),
@@ -548,8 +570,8 @@ def main():
     ])
     s += [PageBreak()]
 
-    # 11
-    s += title("10. Evaluación UX con Nielsen")
+    # 12
+    s += title("11. Evaluación UX con Nielsen")
     ux = [
         ["Heurística", "Estado", "Evidencia"],
         ["Visibilidad del estado", "Cumple", "Carga, ciclo de agentes, resultados y notificaciones."],
@@ -573,8 +595,8 @@ def main():
               ("Medición", "Registrar éxito de tarea, errores y confianza percibida."),
           ]), PageBreak()]
 
-    # 12
-    s += title("11. Público objetivo y feedback real")
+    # 13
+    s += title("12. Público objetivo y feedback real")
     s += [P("La evaluación se realizó desde el caso de uso de una persona que vive sola, compra en supermercados argentinos y usa la app principalmente desde el celular. El lenguaje evita tecnicismos; la geolocalización se pide cuando aporta valor; la corrección de ingredientes ocurre justo antes del descuento."),
           P("Feedback incorporado durante el desarrollo", "H2x")]
     feedback = [
@@ -592,8 +614,8 @@ def main():
           ]),
           P("Próxima validación recomendada", "H2x"), P("Realizar cinco pruebas moderadas con personas que vivan solas: crear un plan, corregir un ingrediente, encontrar una promoción, publicar un calendario y borrar memoria. Medir éxito de tarea, tiempo, errores y confianza en las recomendaciones."), PageBreak()]
 
-    # 12
-    s += title("12. Ciberseguridad y privacidad")
+    # 14
+    s += title("13. Ciberseguridad y privacidad")
     risks = [
         ["Riesgo", "Control / decisión"],
         ["Secretos OAuth/correo expuestos", ".env ignorado y variables privadas de producción; rotación si se divulgan."],
@@ -612,8 +634,8 @@ def main():
           Spacer(1, 4 * mm),
           P("Prioridad", "Callout"), P("La seguridad alimentaria domina el ranking funcional. La aplicación nunca debe compensar una alergia o un vencimiento con ahorro, popularidad, gusto o rapidez."), PageBreak()]
 
-    # 13
-    s += title("13. Co-work con inteligencia artificial")
+    # 15
+    s += title("14. Co-work con inteligencia artificial")
     ai = [
         ["Herramienta", "Uso", "Evaluación crítica"],
         ["ChatGPT Work", "Ideación y primeras iteraciones", "Aceleró exploración; las ideas se verificaron en código."],
@@ -631,8 +653,8 @@ def main():
               ("Decidir", "La responsabilidad final sigue siendo humana."),
           ]), PageBreak()]
 
-    # 14
-    s += title("14. IA local: papel y aporte al usuario")
+    # 16
+    s += title("15. IA local: papel y aporte al usuario")
     s += [P("1. Papel de un LLM/SLM local", "H2x"),
           P("Un modelo pequeño local podría actuar como componente de soporte, no como autoridad sobre alergias o vencimientos. Interpretaría descripciones libres de inventario, resumiría feedback semanal y explicaría recetas con lenguaje flexible. Los nueve agentes determinísticos conservarían las decisiones críticas por ser auditables y reproducibles. No reemplazaría una API externa actual -MealBoard no consume un LLM en producción- sino que agregaría comprensión de lenguaje sin costo por token."),
           P("2. Aporte al usuario", "H2x"),
@@ -646,8 +668,8 @@ def main():
           flow(["Texto libre", "SLM local\ninterpreta", "Reglas MealBoard\nvalidan", "Usuario\nconfirma"], [34*mm, 38*mm, 45*mm, 34*mm]), Spacer(1, 8 * mm),
           P("El modelo local nunca escribe directamente en D1 ni decide una sustitución segura. Solo produce una propuesta estructurada que el motor de reglas valida.", "Callout"), PageBreak()]
 
-    # 15
-    s += title("15. IA local: aporte profesional y límites")
+    # 17
+    s += title("16. IA local: aporte profesional y límites")
     s += [P("3. Aporte profesional", "H2x"),
           P("Permitiría analizar localmente logs anonimizados, dificultades frecuentes y patrones de abandono sin enviar datos sensibles fuera de la organización. Facilitaría clasificar feedback, preparar reportes y probar nuevos flujos sin conexión. También exigiría evaluaciones propias para medir calidad, sesgos y errores en el dominio alimentario."),
           P("4. Limitaciones frente a la nube", "H2x"),

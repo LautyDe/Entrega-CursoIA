@@ -6,7 +6,8 @@ import { argentinaCardTypes, benefitSourceForProvider, canonicalPaymentProvider,
 import { findNearbySupermarkets, type Coordinates, type NearbyStore } from "../lib/nearby-stores";
 import { migrateLegacyPayment, promotionSaving, selectBestPromotionForPurchase, type CardType, type PaymentMethod } from "../lib/payments";
 import { MEALBOARD_STORAGE_KEY, parseStoredState, serializeStoredState } from "../lib/persistence";
-import { normalizeIngredientName, parseInventoryAmount, recommendedConsumption, subtractInventoryAmount } from "../lib/inventory-consumption";
+import { normalizeIngredientName, parseInventoryAmount, recommendedConsumption } from "../lib/inventory-consumption";
+import { applyConfirmedConsumption, summarizeConfirmedPurchase } from "../lib/confirmed-actions";
 import { addNutrition, emptyNutrition, nutritionForMeal, type NutritionEstimate } from "../lib/nutrition";
 import { extractPublicBenefitReferences, publicBenefitMatchesStore } from "../lib/public-benefit-extraction";
 import { StoreMap, type StoreDeal } from "./store-map";
@@ -762,12 +763,10 @@ export default function Home() {
         return;
       }
     }
-    const inventory = state.inventory.flatMap((item) => {
-      const used = usage.get(item.id);
-      if (!used) return [item];
-      const amount = subtractInventoryAmount(item.amount, used);
-      return amount ? [{ ...item, amount }] : [];
-    });
+    const inventory = applyConfirmedConsumption(
+      state.inventory,
+      [...usage].map(([inventoryId, quantity]) => ({ inventoryId, quantity })),
+    );
     const week = state.week.map((day) => day.id === selectedMealContext.dayId
       ? { ...day, cookedSlots: [...new Set([...(day.cookedSlots ?? []), selectedMealContext.slot])] }
       : day);
@@ -980,15 +979,13 @@ export default function Home() {
   };
 
   const completePurchase = () => {
-    const bought = state.shopping.filter((item) => item.checked);
+    const { bought, pending, spent, saved } = summarizeConfirmedPurchase(state.shopping, bestPromotion);
     if (!bought.length) {
       notify("Marcá al menos un producto como comprado");
       return;
     }
     const purchaseId = Math.max(0, ...state.purchases.map((purchase) => purchase.id)) + 1;
     const memoryId = Math.max(0, ...state.memory.map((record) => record.id)) + 1;
-    const spent = bought.reduce((sum, item) => sum + item.price, 0);
-    const saved = promotionSaving(spent, bestPromotion);
     const newInventory = bought.map((item, index) => ({
       id: Date.now() + index, name: item.name, amount: item.amount, price: item.price,
       purchaseDate: todayIso(), expiryDate: "", expiry: "7 días",
@@ -996,7 +993,7 @@ export default function Home() {
     persist({
       ...state,
       inventory: [...state.inventory, ...newInventory],
-      shopping: state.shopping.filter((item) => !item.checked),
+      shopping: pending,
       savings: state.savings + saved,
       purchases: [...state.purchases, { id: purchaseId, date: "Hoy", spent, saved, store: bestPromotion?.store ?? "Sin promoción", discount: bestPromotion?.discount ?? "0%" }],
       memory: [...state.memory, { id: memoryId, text: bestPromotion

@@ -10,12 +10,13 @@ para comprar.
 
 ## Entrega final
 
-- [Informe final en PDF](output/pdf/MealBoard-entrega-final.pdf) — 16 páginas con
+- [Informe final en PDF](output/pdf/MealBoard-entrega-final.pdf) — 17 páginas con
   accesos, arquitectura, agentes, UML, stack, evidencias, UX, seguridad, co-work
   e IA local.
 - [Arquitectura completa](docs/arquitectura.md).
 - [Evaluación UX y seguridad](docs/evaluacion-ux-seguridad.md).
 - [Registro reproducible de una sesión](docs/evidencias/sesion-real.md).
+- [Resultados antes/después de recorridos confirmados](docs/evidencias/recorridos-confirmados.md).
 - [Guion de demostración de tres minutos](docs/guion-demo.md).
 - El PDF se regenera con `py -3 scripts/generate-final-report.py`.
 
